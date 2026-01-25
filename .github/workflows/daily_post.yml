@@ -7,14 +7,13 @@
 
 name: Test Run (Every 5 Mins)
 on:
-  schedule:
-    # '*/5 * * * *' means "Run every 5 minutes"
-    - cron: '*/5 * * * *'
+  # schedule:
+  #   # '*/5 * * * *' means "Run every 5 minutes"
+  #   - cron: '*/5 * * * *'
   workflow_dispatch: # Keep this so you can button-click it too  
 
 permissions:
   contents: write # REQUIRED: Allows bot to update history.json
-
   
 jobs:
   run-bot:
