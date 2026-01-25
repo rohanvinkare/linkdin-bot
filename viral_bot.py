@@ -10,9 +10,11 @@ from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
-LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN")
-ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+# ADD .strip() TO ALL OF THESE LINES:
+LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN", "").strip()
+ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 # High-Quality Engineering Blogs (The "Authentic" Sources)
 RSS_FEEDS = [
