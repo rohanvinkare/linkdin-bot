@@ -130,11 +130,18 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 4. AI CONTENT GENERATION ---
+
 def generate_viral_post(news_item):
-    model = genai.GenerativeModel('gemini-pro')
+    """
+    Generates content using the Gemini REST API directly (Bypassing the buggy library).
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
-    prompt = f"""
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    prompt_text = f"""
     Act as a Senior Software Architect. Read this technical article context:
     "{news_item['full_text'][:2500]}..."
     
@@ -148,7 +155,30 @@ def generate_viral_post(news_item):
     6. Tags: #tech #engineering #learning
     7. Keep it under 200 words.
     """
-    return model.generate_content(prompt).text
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        else:
+            print(f"⚠️ AI Error {response.status_code}: {response.text}")
+            # Fallback text if AI fails
+            return f"🔥 Breaking Tech News: {news_item['title']}\n\nRead more here: {news_item['link']}\n\n#tech #news"
+            
+    except Exception as e:
+        print(f"⚠️ AI Connection Failed: {e}")
+        return f"Interesting update in tech: {news_item['title']}\n{news_item['link']}"
+
+
+
+
 
 # --- 5. LINKEDIN PUBLISHING ---
 def post_to_linkedin(content, image_url):
