@@ -132,7 +132,7 @@ def fetch_fresh_news(history_data):
 
 # --- 4. AI CONTENT GENERATION ---
 def generate_viral_post(news_item):
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash-001')
     
     prompt = f"""
     Act as a Senior Software Architect. Read this technical article context:
