@@ -1,0 +1,8 @@
+[
+    {
+        "date": "2026-01-25",
+        "day": "Sunday",
+        "article_name": "How Salesforce migrated from Cluster Autoscaler to Karpenter across their fleet of 1,000 EKS clusters",
+        "web_link": "https://aws.amazon.com/blogs/architecture/how-salesforce-migrated-from-cluster-autoscaler-to-karpenter-across-their-fleet-of-1000-eks-clusters/"
+    }
+]
