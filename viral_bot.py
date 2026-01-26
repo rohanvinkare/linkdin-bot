@@ -7,6 +7,16 @@ import os
 import datetime
 import re
 from bs4 import BeautifulSoup
+import time
+import random
+
+# --- HUMAN BEHAVIOR SIMULATION ---
+print("😴 Simulating human delay...")
+# Random sleep between 1 minute (60s) and 5 minutes (300s)
+sleep_seconds = random.randint(60, 300)
+time.sleep(sleep_seconds)
+print(f"⏰ Waking up after {sleep_seconds} seconds!")
+
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"

@@ -1,20 +1,18 @@
-# name: Daily Tech Post
-# on:
-#   schedule:
-#     # Runs at 09:30 AM IST (04:00 UTC)
-#     - cron: '0 4 * * *'
-#   workflow_dispatch:
+name: Daily Tech Posts (2x Human Mode)
 
-name: Test Run (Every 5 Mins)
 on:
   schedule:
-    # '*/5 * * * *' means "Run every 5 minutes"
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # Keep this so you can button-click it too  
+    # MORNING POST: 09:30 AM IST (04:00 UTC)
+    - cron: '0 4 * * *'
+    
+    # EVENING POST: 05:30 PM IST (12:00 UTC)
+    - cron: '0 12 * * *'
+    
+  workflow_dispatch: # Allows manual button click testing
 
 permissions:
-  contents: write # REQUIRED: Allows bot to update history.json
-  
+  contents: write # REQUIRED to save history.json
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -42,5 +40,5 @@ jobs:
           git config --global user.name 'ViralBot'
           git config --global user.email 'bot@noreply.github.com'
           git add history.json
-          # Only commit if file changed
+          # Only commit if history.json actually changed (avoids empty commit errors)
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update history log [skip ci]" && git push)
