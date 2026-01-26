@@ -17,9 +17,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 # High-Quality Sources
 RSS_FEEDS = [
-    "https://github.blog/feed/",            # Usually easy to scrape
-    "https://stackoverflow.blog/feed/",     # Good content
-    "https://techcrunch.com/feed/",         # High volume
+    "https://github.blog/feed/",            
+    "https://stackoverflow.blog/feed/",     
+    "https://techcrunch.com/feed/",         
     "https://aws.amazon.com/blogs/architecture/feed/"
 ]
 
@@ -83,11 +83,6 @@ def fetch_best_article(history_data):
             continue
         
         for entry in feed.entries[:1]: # Check only the 1st link of each feed
-            # SKIP HISTORY CHECK FOR TESTING
-            # if is_already_posted(entry.link, history_data): 
-            #     print("   ⏭️ Already posted. Skipping.")
-            #     continue
-            
             full_text = get_article_content(entry.link)
             if not full_text: continue
             
@@ -165,8 +160,11 @@ def post_to_linkedin(content):
 # --- HISTORY UTILS ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        try: with open(HISTORY_FILE, "r") as f: return json.load(f)
-        except: return []
+        try: 
+            with open(HISTORY_FILE, "r") as f: 
+                return json.load(f)
+        except: 
+            return []
     return []
 
 def save_history(history, link):
@@ -193,7 +191,7 @@ if __name__ == "__main__":
 
 
 
-    
+
 
 # import requests
 # import feedparser
