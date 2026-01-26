@@ -28,7 +28,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install Libraries
-        run: pip install requests feedparser google-generativeai beautifulsoup4
+        run: pip install requests feedparser google-genai beautifulsoup4
 
       - name: Run Viral Bot
         env:
