@@ -226,21 +226,39 @@ def generate_viral_post(content_item):
         """
 
     # Call Gemini
-    for model in get_valid_models():
+    for model in valid_models:
+        print(f"   👉 Attempting with: {model}")
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-            resp = requests.post(url, headers={"Content-Type": "application/json"}, json={"contents": [{"parts": [{"text": prompt}]}]})
+            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            headers = {"Content-Type": "application/json"}
+            
+            resp = requests.post(url, headers=headers, json=payload)
+            
             if resp.status_code == 200:
-                text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-                # Sanitize
-                text = text.replace("**", "").replace("##", "")
-                text = re.sub(r'^\* ', '🔹 ', text, flags=re.MULTILINE)
-                return text
-            elif resp.status_code == 429:
-                time.sleep(5)
+                try:
+                    text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+                    # Sanitize
+                    text = text.replace("**", "").replace("##", "")
+                    text = re.sub(r'^\* ', '🔹 ', text, flags=re.MULTILINE)
+                    return text
+                except KeyError:
+                    print(f"   ⚠️  Model {model} returned empty content (Safety Filter trigger?). Response: {resp.text}")
+                    continue
+            else:
+                print(f"   ❌ Error {resp.status_code}: {resp.text}")
+                if resp.status_code == 429:
+                    time.sleep(5)
                 continue
-        except: continue
+                
+        except Exception as e:
+            print(f"   ⚠️  Exception with {model}: {e}")
+            continue
+
+    print("❌ All models failed to generate content.")
     return None
+    
 
 # --- 4. LINKEDIN POSTING ---
 def post_to_linkedin(content, image_url):
