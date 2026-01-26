@@ -6,7 +6,7 @@ import time
 import os
 import datetime
 import re
-import google.generativeai as genai
+from google import genai
 from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
