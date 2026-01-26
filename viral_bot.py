@@ -5,9 +5,7 @@ import random
 import time
 import os
 import datetime
-import google.generativeai as genai
 from bs4 import BeautifulSoup
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
@@ -32,9 +30,6 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Configure Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-
 # --- 1. UTILS ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -58,33 +53,31 @@ def is_already_posted(link, history_data):
             return True
     return False
 
-# --- 2. SMART SCRAPER (Fixes "Empty Text" Issues) ---
+# --- 2. SMART SCRAPER ---
 def get_article_text(url):
     """
-    Intelligently finds the main article body, skipping menus/footers.
+    Intelligently finds the main article body.
     """
     try:
         print(f"   ⬇️  Downloading: {url}")
         r = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # 1. Try finding specific "article body" containers first
+        # Try finding specific "article body" containers
         possible_bodies = soup.select(
             '#articlebody, .article-body, .entry-content, .post-content, article, .main-content'
         )
-        
         target_element = possible_bodies[0] if possible_bodies else soup
 
-        # 2. Extract text only from that container
+        # Extract text
         paragraphs = target_element.find_all('p')
         text = " ".join([p.get_text().strip() for p in paragraphs])
         
-        # 3. Validation: If text is too short, return None so we skip this bad article
         if len(text) < 500:
             print(f"   ⚠️  Warning: Scraped text is too short ({len(text)} chars). Skipping.")
             return None
             
-        return text[:15000] # Limit chars to save API tokens
+        return text[:15000] 
     except Exception as e:
         print(f"   ❌ Scraping Error: {e}")
         return None
@@ -104,14 +97,10 @@ def fetch_fresh_news(history_data):
         for entry in feed.entries[:3]:
             if not is_already_posted(entry.link, history_data):
                 print(f"🔍 Found candidate: {entry.title}")
-                
-                # Get the Full Context (Deep Scrape)
                 full_text = get_article_text(entry.link)
                 
-                if not full_text:
-                    continue
+                if not full_text: continue
                 
-                # Get Image (Optional)
                 image_url = None
                 try:
                     r = requests.get(entry.link, headers=HEADERS, timeout=5)
@@ -128,52 +117,48 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 3. AI GENERATION (Fixes "Fallback" Issues) ---
+# --- 3. AI GENERATION (DIRECT REST API - NO LIBRARY NEEDED) ---
 def generate_viral_post(news_item):
     print("   🧠 Asking Gemini to write the post...")
     
-    # DISABLE SAFETY FILTERS so it writes about Security/Malware news without blocking
-    safety_settings = {
-        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-    }
-
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # We use the REST API directly to bypass the library error
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
-    # STRICT PROMPT for "Crispy" Bullet Points
     prompt = f"""
-    You are a professional Tech Journalist on LinkedIn. 
-    Write a clean, high-engagement post summarizing this article.
-
-    HEADLINE: {news_item['title']}
-    CONTENT: "{news_item['full_text'][:5000]}..."
-
-    STRICT OUTPUT FORMAT (Follow this exactly):
+    You are a professional Tech Journalist. Write a LinkedIn post summarizing this article.
     
-    [One catchy sentence hook about the news]
-
-    💡 **The Gist:**
-    🔹 [Bullet point 1: Key technical fact]
-    🔹 [Bullet point 2: Key technical fact]
-    🔹 [Bullet point 3: Key technical fact]
-
-    📉 **Why it Matters:**
-    [One sentence explaining the impact on developers/engineers]
-
-    👇 What are your thoughts on this?
-
-    [Insert Link Here: {news_item['link']}]
-
-    #tech #engineering #news #learning
+    HEADLINE: {news_item['title']}
+    CONTENT: "{news_item['full_text'][:6000]}..."
+    
+    STRICT OUTPUT FORMAT:
+    1. Start with a catchy one-sentence Hook.
+    2. Add "💡 The Gist:" followed by 3 short bullet points summarizing the technical details.
+    3. Add "📉 Why it Matters:" followed by one sentence on the impact.
+    4. End with a Question to the audience.
+    5. Place this link at the very end: {news_item['link']}
+    6. Tags: #tech #news #engineering
     """
     
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    
     try:
-        response = model.generate_content(prompt, safety_settings=safety_settings)
-        return response.text.strip()
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result['candidates'][0]['content']['parts'][0]['text']
+        else:
+            print(f"   🚨 API Error {response.status_code}: {response.text}")
+            return None
+            
     except Exception as e:
-        print(f"   🚨 AI CRITICAL ERROR: {e}")
+        print(f"   🚨 Connection Error: {e}")
         return None
 
 # --- 4. LINKEDIN PUBLISHING ---
@@ -245,23 +230,17 @@ if __name__ == "__main__":
         print("❌ Failed to generate text. Exiting.")
         exit()
 
-    # PRINT PREVIEW TO CONSOLE
     print("\n--- POST PREVIEW ---")
     print(post_text)
     print("--------------------\n")
     
     if post_to_linkedin(post_text, news['image_url']):
         print("✅ Posted to LinkedIn!")
-        
-        now = datetime.datetime.now()
-        new_record = {
-            "date": now.strftime("%Y-%m-%d"),
-            "day": now.strftime("%A"),
+        save_history(history, {
+            "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+            "day": datetime.datetime.now().strftime("%A"),
             "article_name": news['title'],
             "web_link": news['link']
-        }
-        
-        save_history(history, new_record)
-        print("📁 History Updated.")
+        })
     else:
         print("❌ LinkedIn API Error.")
