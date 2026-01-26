@@ -117,12 +117,18 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 3. AI GENERATION (DIRECT REST API - NO LIBRARY NEEDED) ---
+# --- 3. AI GENERATION (ROBUST VERSION) ---
+def call_gemini_api(model_name, prompt):
+    """Helper to call API with a specific model"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+    return requests.post(url, headers=headers, json=payload)
+
 def generate_viral_post(news_item):
     print("   🧠 Asking Gemini to write the post...")
-    
-    # We use the REST API directly to bypass the library error
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
     prompt = f"""
     You are a professional Tech Journalist. Write a LinkedIn post summarizing this article.
@@ -138,27 +144,24 @@ def generate_viral_post(news_item):
     5. Place this link at the very end: {news_item['link']}
     6. Tags: #tech #news #engineering
     """
+
+    # --- ATTEMPT 1: Try Gemini 2.0 Flash (Newer Model) ---
+    print("   👉 Trying Model: gemini-2.0-flash...")
+    response = call_gemini_api("gemini-2.0-flash", prompt)
     
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
-    
-    headers = {"Content-Type": "application/json"}
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result['candidates'][0]['content']['parts'][0]['text']
-        else:
-            print(f"   🚨 API Error {response.status_code}: {response.text}")
+    if response.status_code != 200:
+        # --- ATTEMPT 2: Fallback to Gemini Pro (Standard Alias) ---
+        print(f"   ⚠️ Model 2.0 failed ({response.status_code}). Trying fallback: gemini-pro...")
+        response = call_gemini_api("gemini-pro", prompt)
+
+    if response.status_code == 200:
+        try:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        except:
+            print("   ❌ Error parsing JSON response.")
             return None
-            
-    except Exception as e:
-        print(f"   🚨 Connection Error: {e}")
+    else:
+        print(f"   🚨 ALL AI MODELS FAILED. Error {response.status_code}: {response.text}")
         return None
 
 # --- 4. LINKEDIN PUBLISHING ---
