@@ -55,31 +55,24 @@ def is_already_posted(link, history_data):
 
 # --- 2. SMART SCRAPER ---
 def get_article_text(url):
-    """
-    Intelligently finds the main article body.
-    """
     try:
         print(f"   ⬇️  Downloading: {url}")
         r = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # Try finding specific "article body" containers
         possible_bodies = soup.select(
             '#articlebody, .article-body, .entry-content, .post-content, article, .main-content'
         )
         target_element = possible_bodies[0] if possible_bodies else soup
 
-        # Extract text
         paragraphs = target_element.find_all('p')
         text = " ".join([p.get_text().strip() for p in paragraphs])
         
         if len(text) < 500:
-            print(f"   ⚠️  Warning: Scraped text is too short ({len(text)} chars). Skipping.")
             return None
             
         return text[:15000] 
-    except Exception as e:
-        print(f"   ❌ Scraping Error: {e}")
+    except:
         return None
 
 def fetch_fresh_news(history_data):
@@ -117,51 +110,57 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 3. AUTO-DISCOVERY AI GENERATION (THE FIX) ---
+# --- 3. AUTO-DISCOVERY AI GENERATION ---
 def get_valid_models():
-    """
-    Asks Google: 'What models can I actually use right now?'
-    Returns a list of valid model names.
-    """
+    """Finds working models automatically."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     try:
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
-            # Filter for models that support 'generateContent'
             valid_models = [
                 m['name'].replace('models/', '') 
                 for m in data.get('models', []) 
                 if 'generateContent' in m.get('supportedGenerationMethods', [])
             ]
-            # Sort them to prefer 'Flash' (Fast) and 'Pro' (Quality)
             valid_models.sort(key=lambda x: ('flash' not in x, 'pro' not in x))
             return valid_models
-        else:
-            print(f"   ⚠️ Could not list models ({response.status_code}). Using fallbacks.")
-            return ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"]
+        return ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"]
     except:
         return ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"]
 
 def generate_viral_post(news_item):
     print("   🧠 Asking Gemini to write the post...")
     
+    # --- KEY FIX: Forced formatting instructions ---
     prompt = f"""
-    You are a professional Tech Journalist. Write a LinkedIn post summarizing this article.
+    You are a professional Tech Journalist. Write a LinkedIn post.
     
     HEADLINE: {news_item['title']}
     CONTENT: "{news_item['full_text'][:6000]}..."
     
-    STRICT OUTPUT FORMAT:
-    1. Start with a catchy one-sentence Hook.
-    2. Add "💡 The Gist:" followed by 3 short bullet points summarizing the technical details.
-    3. Add "📉 Why it Matters:" followed by one sentence on the impact.
-    4. End with a Question to the audience.
-    5. Place this link at the very end: {news_item['link']}
-    6. Tags: #tech #news #engineering
+    STRICT OUTPUT RULES:
+    1. Do NOT use markdown bold (**text**) in the body paragraphs.
+    2. Do NOT use markdown lists (* item). Use Emoji bullets instead.
+    
+    FORMAT:
+    [Catchy Hook Sentence]
+
+    💡 **The Gist:**
+    🔹 [Short point 1]
+    🔹 [Short point 2]
+    🔹 [Short point 3]
+
+    📉 **Why it Matters:**
+    [One sentence on impact]
+
+    👇 [Question to audience]
+
+    {news_item['link']}
+    
+    #tech #news #engineering
     """
 
-    # 1. Get the list of ACTUALLY available models
     available_models = get_valid_models()
     print(f"   ℹ️  Available Models: {available_models[:3]}...")
 
@@ -171,35 +170,27 @@ def generate_viral_post(news_item):
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
-        # RETRY LOOP for Error 429 (Rate Limit)
-        max_retries = 3
-        for attempt in range(max_retries):
+        # RETRY LOOP for Error 429
+        for attempt in range(3):
             try:
                 response = requests.post(url, headers=headers, json=payload)
                 
                 if response.status_code == 200:
-                    print(f"   ✅ Success with {model_name}!")
-                    return response.json()['candidates'][0]['content']['parts'][0]['text']
+                    text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    
+                    # --- FINAL CLEANUP: Replace any remaining stray asterisks ---
+                    # This ensures no * ever gets to LinkedIn
+                    text = text.replace("* ", "🔹 ").replace("- ", "🔹 ")
+                    return text
                 
                 elif response.status_code == 429:
-                    wait_time = (attempt + 1) * 5  # Wait 5s, 10s, 15s
-                    print(f"      ⏳ Rate Limited (429). Waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue # Try again
-                
-                elif response.status_code == 404:
-                    print(f"      ❌ Model {model_name} not found. Skipping.")
-                    break # Break retry loop, move to next model
-                
+                    time.sleep((attempt + 1) * 5)
+                    continue
                 else:
-                    print(f"      ⚠️ Error {response.status_code}: {response.text}")
-                    break # Unknown error, move to next model
-                    
-            except Exception as e:
-                print(f"      🚨 Connection Error: {e}")
+                    break
+            except:
                 break
 
-    print("   🚨 ALL AI MODELS FAILED.")
     return None
 
 # --- 4. LINKEDIN PUBLISHING ---
@@ -232,9 +223,7 @@ def post_to_linkedin(content, image_url):
             
             print("   -> Uploading image binary...")
             requests.put(upload_url, data=requests.get(image_url, headers=HEADERS).content, headers={"Authorization": f"Bearer {ACCESS_TOKEN}"})
-            print("   -> Image uploaded.")
         except:
-            print("⚠️ Image upload failed. Posting text only.")
             asset = None
 
     post_body = {
