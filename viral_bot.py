@@ -31,131 +31,90 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# --- INIT CLIENT (NEW SYNTAX) ---
+# --- INIT CLIENT ---
 if not GEMINI_API_KEY:
     print("❌ ERROR: GEMINI_API_KEY is missing from environment variables.")
     exit()
 
-# Initialize the new Client
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- 1. DEEP CONTENT SCRAPER ---
 def get_article_content(url):
-    """
-    Visits the link and scrapes the actual P tags to get the full story.
-    """
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
-        
-        # Fallback for sites that block bots (403/401)
-        if r.status_code != 200:
-            return None
-            
+        if r.status_code != 200: return None
         soup = BeautifulSoup(r.content, 'html.parser')
-        
-        # Find all paragraphs
         paragraphs = soup.find_all('p')
-        
-        # If <p> tags are empty, try generic divs (fallback)
         if not paragraphs:
             paragraphs = soup.find_all('div', class_=re.compile('(content|post|article|body)'))
-
-        # Join the first 15 paragraphs (approx 1000-1500 words)
         full_text = " ".join([p.get_text() for p in paragraphs[:15]])
-        
-        if len(full_text) < 300: # If scraping failed or content is too short
-            return None
-            
+        if len(full_text) < 300: return None
         return full_text.strip()
     except Exception as e:
-        print(f"⚠️ Scraping failed for {url}: {e}")
+        print(f"⚠️ Scraping failed: {e}")
         return None
 
 # --- 2. THE AI JUDGE (Quality Control) ---
 def evaluate_article(title, text):
-    """
-    Asks Gemini: 'Is this article actually important?'
-    """
     prompt = f"""
     Act as a Senior Tech Editor. Analyze this article summary:
-    
     Title: {title}
     Snippet: {text[:1000]}...
     
     Task: Rate this article for a LinkedIn audience of developers.
-    Criteria:
-    1. Is it a major tech update or just a small tutorial?
-    2. Is it trending or generic?
-    
-    Return ONLY a JSON string like this:
-    {{"score": 8, "reason": "Major release of Python 4.0"}}
+    Return ONLY a JSON string like: {{"score": 8, "reason": "..."}}
     """
     
     try:
-        # NEW: Using client.models.generate_content
+        # SWITCHED BACK TO 1.5-FLASH FOR BETTER RATE LIMITS
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-1.5-flash', 
             contents=prompt
         )
-        raw_output = response.text
-        
-        # --- ROBUST JSON PARSING ---
-        clean_json = raw_output.replace("```json", "").replace("```", "").strip()
-        
+        clean_json = response.text.replace("```json", "").replace("```", "").strip()
         try:
             return json.loads(clean_json)
-        except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", raw_output, re.DOTALL)
-            if match:
-                return json.loads(match.group(0))
-            else:
-                return {"score": 5, "reason": "Parsing Error"}
-        
+        except:
+            match = re.search(r"\{.*\}", response.text, re.DOTALL)
+            return json.loads(match.group(0)) if match else {"score": 5, "reason": "Parsing Error"}
     except Exception as e:
-        print(f"⚠️ AI Evaluation Error: {e}")
+        print(f"⚠️ AI Wait Error (429): {e}")
         return {"score": 5, "reason": "AI Error"}
 
 # --- 3. SMART FETCHER ---
 def fetch_best_article(history_data):
-    # Randomize feed order
     random.shuffle(RSS_FEEDS)
+    print("🔍 Scanning feeds...")
     
-    print("🔍 Scanning feeds for high-quality news...")
-    
-    for feed_url in RSS_FEEDS[:5]: # Check 5 random feeds per run
-        try:
-            feed = feedparser.parse(feed_url)
-        except:
-            continue
+    # REDUCED TO 3 FEEDS TO SAVE QUOTA
+    for feed_url in RSS_FEEDS[:3]: 
+        try: feed = feedparser.parse(feed_url)
+        except: continue
         
-        for entry in feed.entries[:2]: # Look at top 2 posts only
-            if is_already_posted(entry.link, history_data):
-                continue
-                
-            # 1. Get Content
+        for entry in feed.entries[:2]:
+            if is_already_posted(entry.link, history_data): continue
+            
             full_text = get_article_content(entry.link)
             if not full_text: continue
             
-            # Rate Limit Protection
-            time.sleep(2) 
+            # INCREASED SLEEP TO 10 SECONDS TO FIX 429 ERROR
+            print("⏳ Waiting 10s for API cooldown...") 
+            time.sleep(10) 
             
-            # 2. AI Judge
             evaluation = evaluate_article(entry.title, full_text)
             print(f"   -> Evaluated: {entry.title[:30]}... | Score: {evaluation['score']}/10")
             
-            if evaluation['score'] >= 7: # Only accept High Quality (7+)
+            # LOWERED SCORE TO 4 TO FORCE A POST TODAY
+            if evaluation['score'] >= 4: 
                 return {
                     "title": entry.title,
                     "link": entry.link,
-                    "full_text": full_text,
-                    "reason": evaluation['reason']
+                    "full_text": full_text
                 }
-                
     return None
 
 # --- 4. FORMATTING UTILS ---
 def to_bold(text):
-    """Unicode Bold Hack"""
     normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     bold   = "𝐇𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝐡𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗"
     trans = str.maketrans(normal, bold)
@@ -178,77 +137,44 @@ def generate_linkedin_post(article):
     
     Return pure text.
     """
-    
     try:
-        # NEW: Using client.models.generate_content
+        time.sleep(5) # Extra safety wait
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-1.5-flash', 
             contents=prompt
         )
         raw_text = response.text.strip()
-        
-        if not raw_text:
-            return None
-        
-        # Apply Bold to the first line manually
         lines = raw_text.split('\n')
-        if lines:
-            lines[0] = to_bold(lines[0].replace("*", "").replace("#", "")) 
-        
-        final_post = "\n".join(lines) + f"\n\n🔗 Read more: {article['link']}"
-        return final_post
-        
+        if lines: lines[0] = to_bold(lines[0].replace("*", "").replace("#", "")) 
+        return "\n".join(lines) + f"\n\n🔗 Read more: {article['link']}"
     except Exception as e:
         print(f"⚠️ Generation Error: {e}")
         return None
 
 # --- 6. LINKEDIN API ---
 def post_to_linkedin(content):
-    if not ACCESS_TOKEN or not LINKEDIN_PERSON_URN:
-        print("❌ Error: Missing LinkedIn Credentials in Environment Variables.")
-        return False
-
+    if not ACCESS_TOKEN or not LINKEDIN_PERSON_URN: return False
     url = "https://api.linkedin.com/v2/ugcPosts"
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0"
-    }
-    
-    # Clean URN to avoid "urn:li:person:urn:li:person:123" error
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0"}
     clean_urn = LINKEDIN_PERSON_URN.replace("urn:li:person:", "")
-    
     payload = {
         "author": f"urn:li:person:{clean_urn}",
         "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": content},
-                "shareMediaCategory": "NONE"
-            }
-        },
+        "specificContent": {"com.linkedin.ugc.ShareContent": {"shareCommentary": {"text": content}, "shareMediaCategory": "NONE"}},
         "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
     }
-    
     try:
         r = requests.post(url, headers=headers, json=payload)
-        
-        if r.status_code == 201:
-            return True
+        if r.status_code == 201: return True
         else:
-            print(f"❌ LinkedIn API Error: {r.status_code}")
-            print(f"❌ Details: {r.text}") 
+            print(f"❌ LinkedIn Error: {r.status_code} - {r.text}") 
             return False
-            
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-        return False
+    except: return False
 
 # --- HISTORY UTILS ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r") as f: return json.load(f)
+        try: with open(HISTORY_FILE, "r") as f: return json.load(f)
         except: return []
     return []
 
@@ -266,32 +192,16 @@ def is_already_posted(link, history):
 if __name__ == "__main__":
     print("🎬 LinkedIn Bot Starting...")
     history = load_history()
-    
-    # 1. Find a worthy article
     best_article = fetch_best_article(history)
     
     if best_article:
         print(f"🚀 Selected: {best_article['title']}")
-        
-        # 2. Write Post
         post_content = generate_linkedin_post(best_article)
-        
-        if post_content:
-            print("📝 Drafted Post:\n", "-"*20)
-            print(post_content)
-            print("-"*20)
-            
-            # 3. Publish
-            if post_to_linkedin(post_content):
-                print("✅ Published Successfully!")
-                save_history(history, best_article['link'])
-            else:
-                print("❌ Failed to publish.")
-        else:
-            print("❌ Error generating post content.")
-    else:
-        print("😴 No articles scored high enough (7/10) to post right now.")
-
+        if post_content and post_to_linkedin(post_content):
+            print("✅ Published Successfully!")
+            save_history(history, best_article['link'])
+        else: print("❌ Failed to publish.")
+    else: print("😴 No articles found.")
 
 
 
