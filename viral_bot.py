@@ -312,7 +312,7 @@ if __name__ == "__main__":
     
     # 1. Human Delay (1-5 mins)
     print("😴 Simulating human behavior...")
-    time.sleep(random.randint(60, 0))
+    time.sleep(random.randint(60, 300))
     
     # 2. Load & Fetch
     history = load_history()
