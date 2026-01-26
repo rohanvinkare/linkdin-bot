@@ -117,16 +117,7 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 3. AI GENERATION (ROBUST VERSION) ---
-def call_gemini_api(model_name, prompt):
-    """Helper to call API with a specific model"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
-    return requests.post(url, headers=headers, json=payload)
-
+# --- 3. AI GENERATION (ROBUST MULTI-MODEL VERSION) ---
 def generate_viral_post(news_item):
     print("   🧠 Asking Gemini to write the post...")
     
@@ -137,32 +128,44 @@ def generate_viral_post(news_item):
     CONTENT: "{news_item['full_text'][:6000]}..."
     
     STRICT OUTPUT FORMAT:
-    1. Start with a catchy one-sentence Hook.
-    2. Add "💡 The Gist:" followed by 3 short bullet points summarizing the technical details.
-    3. Add "📉 Why it Matters:" followed by one sentence on the impact.
-    4. End with a Question to the audience.
-    5. Place this link at the very end: {news_item['link']}
-    6. Tags: #tech #news #engineering
+    1. Start with a catchy one-sentence Hook (No emojis in the hook).
+    2. Add a blank line.
+    3. Add "💡 **The Gist:**" followed by 3 short bullet points summarizing the technical details (Use '🔹').
+    4. Add a blank line.
+    5. Add "📉 **Why it Matters:**" followed by one sentence on the impact.
+    6. Add a blank line.
+    7. End with a Question to the audience.
+    8. Place this link at the very end: {news_item['link']}
+    9. Tags: #tech #news #engineering
     """
 
-    # --- ATTEMPT 1: Try Gemini 2.0 Flash (Newer Model) ---
-    print("   👉 Trying Model: gemini-2.0-flash...")
-    response = call_gemini_api("gemini-2.0-flash", prompt)
-    
-    if response.status_code != 200:
-        # --- ATTEMPT 2: Fallback to Gemini Pro (Standard Alias) ---
-        print(f"   ⚠️ Model 2.0 failed ({response.status_code}). Trying fallback: gemini-pro...")
-        response = call_gemini_api("gemini-pro", prompt)
+    # LIST OF MODELS TO TRY (If one fails, it tries the next)
+    models_to_try = [
+        "gemini-2.0-flash-exp",   # Newest/Fastest
+        "gemini-1.5-flash",       # Standard
+        "gemini-1.5-pro",         # High Quality
+        "gemini-pro"              # Legacy Fallback
+    ]
 
-    if response.status_code == 200:
+    for model_name in models_to_try:
+        print(f"   👉 Trying Model: {model_name}...")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
         try:
-            return response.json()['candidates'][0]['content']['parts'][0]['text']
-        except:
-            print("   ❌ Error parsing JSON response.")
-            return None
-    else:
-        print(f"   🚨 ALL AI MODELS FAILED. Error {response.status_code}: {response.text}")
-        return None
+            response = requests.post(url, headers=headers, json=payload)
+            
+            if response.status_code == 200:
+                print(f"   ✅ Success with {model_name}!")
+                return response.json()['candidates'][0]['content']['parts'][0]['text']
+            else:
+                print(f"   ⚠️ {model_name} Failed ({response.status_code}). Trying next...")
+        except Exception as e:
+            print(f"   ⚠️ Connection Error on {model_name}: {e}")
+
+    print("   🚨 ALL AI MODELS FAILED.")
+    return None
 
 # --- 4. LINKEDIN PUBLISHING ---
 def post_to_linkedin(content, image_url):
