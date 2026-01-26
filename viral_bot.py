@@ -142,12 +142,14 @@ def fetch_content(history_data):
 
 # --- 3. DUAL-MODE AI ENGINE ---
 def get_valid_models():
+    """Returns a list of models to try."""
+    # You can add more here if needed, e.g., 'gemini-1.5-pro'
     return ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-pro"]
 
 def generate_viral_post(content_item):
     print("   🧠 Asking Gemini to write the post...")
     
-    # --- PROMPT A: FOR SYSTEM DESIGN / DEVOPS (Educational) ---
+    # --- PROMPT SELECTION ---
     if content_item['type'] == "CONCEPT":
         prompt = f"""
         Act as a Principal Software Architect.
@@ -186,8 +188,7 @@ def generate_viral_post(content_item):
         #systemdesign #devops #architecture #coding
         """
         
-    # --- PROMPT B: FOR NEWS (Trends) ---
-    else:
+    else: # NEWS MODE
         prompt = f"""
         Act as a Senior Tech Lead giving a "Hot Take" on industry news.
         
@@ -225,14 +226,16 @@ def generate_viral_post(content_item):
         #tech #news #engineering
         """
 
-    # Call Gemini
+    # --- DEBUGGING & EXECUTION ---
+    valid_models = get_valid_models() # FIXED: Defined this variable properly
+    print(f"   ℹ️  Trying models: {valid_models}")
+
     for model in valid_models:
         print(f"   👉 Attempting with: {model}")
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-            
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
             headers = {"Content-Type": "application/json"}
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
             
             resp = requests.post(url, headers=headers, json=payload)
             
@@ -244,7 +247,7 @@ def generate_viral_post(content_item):
                     text = re.sub(r'^\* ', '🔹 ', text, flags=re.MULTILINE)
                     return text
                 except KeyError:
-                    print(f"   ⚠️  Model {model} returned empty content (Safety Filter trigger?). Response: {resp.text}")
+                    print(f"   ⚠️  Model {model} returned empty content (Safety Filter?). Response: {resp.text}")
                     continue
             else:
                 print(f"   ❌ Error {resp.status_code}: {resp.text}")
@@ -258,7 +261,6 @@ def generate_viral_post(content_item):
 
     print("❌ All models failed to generate content.")
     return None
-    
 
 # --- 4. LINKEDIN POSTING ---
 def post_to_linkedin(content, image_url):
@@ -297,7 +299,12 @@ def post_to_linkedin(content, image_url):
     }
     
     r = requests.post("https://api.linkedin.com/v2/ugcPosts", headers=headers, json=post_body)
-    return r.status_code == 201
+    
+    if r.status_code == 201:
+        return True
+    else:
+        print(f"❌ LinkedIn Error: {r.text}")
+        return False
 
 # --- MAIN ---
 if __name__ == "__main__":
@@ -305,7 +312,7 @@ if __name__ == "__main__":
     
     # 1. Human Delay (1-5 mins)
     print("😴 Simulating human behavior...")
-    time.sleep(random.randint(60, 300))
+    time.sleep(random.randint(60, 0))
     
     # 2. Load & Fetch
     history = load_history()
