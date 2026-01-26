@@ -132,7 +132,7 @@ def fetch_content(history_data):
                 except: pass
 
                 return {
-                    "type": mode, # Pass the mode to the AI
+                    "type": mode, 
                     "title": entry.title,
                     "link": entry.link,
                     "full_text": full_text,
@@ -140,11 +140,28 @@ def fetch_content(history_data):
                 }
     return None
 
-# --- 3. DUAL-MODE AI ENGINE ---
-def get_valid_models():
-    """Returns a list of models to try."""
-    # You can add more here if needed, e.g., 'gemini-1.5-pro'
-    return ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-pro"]
+# --- 3. ROBUST AI ENGINE ---
+def fetch_available_models():
+    """Dynamically asks Google which models are enabled for this API key."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            # Filter for models that support generating content
+            models = [
+                m['name'].replace('models/', '') 
+                for m in data.get('models', []) 
+                if 'generateContent' in m.get('supportedGenerationMethods', [])
+            ]
+            # Sort to prefer flash (faster/cheaper)
+            models.sort(key=lambda x: ('flash' not in x, 'pro' in x))
+            return models
+    except Exception as e:
+        print(f"   ⚠️ Could not fetch dynamic models: {e}")
+    
+    # Fallback list if dynamic fetch fails
+    return ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.0-pro", "gemini-2.0-flash-exp"]
 
 def generate_viral_post(content_item):
     print("   🧠 Asking Gemini to write the post...")
@@ -226,9 +243,9 @@ def generate_viral_post(content_item):
         #tech #news #engineering
         """
 
-    # --- DEBUGGING & EXECUTION ---
-    valid_models = get_valid_models() # FIXED: Defined this variable properly
-    print(f"   ℹ️  Trying models: {valid_models}")
+    # --- EXECUTION ---
+    valid_models = fetch_available_models()
+    print(f"   ℹ️  Available models from API: {valid_models}")
 
     for model in valid_models:
         print(f"   👉 Attempting with: {model}")
@@ -251,8 +268,11 @@ def generate_viral_post(content_item):
                     continue
             else:
                 print(f"   ❌ Error {resp.status_code}: {resp.text}")
+                
+                # Handling Quota Limits (Error 429)
                 if resp.status_code == 429:
-                    time.sleep(5)
+                    print("   ⏳ Quota exceeded. Waiting 60 seconds before trying next model...")
+                    time.sleep(60) 
                 continue
                 
         except Exception as e:
@@ -310,9 +330,11 @@ def post_to_linkedin(content, image_url):
 if __name__ == "__main__":
     print("🤖 Bot Started...")
     
-    # 1. Human Delay (1-5 mins)
+    # FIX: Correct sleep range
     print("😴 Simulating human behavior...")
-    time.sleep(random.randint(60, 300))
+    sleep_time = random.randint(60, 120) 
+    print(f"   -> Sleeping for {sleep_time} seconds...")
+    time.sleep(sleep_time)
     
     # 2. Load & Fetch
     history = load_history()
