@@ -11,12 +11,12 @@ from bs4 import BeautifulSoup
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
 
-# ADD .strip() TO ALL OF THESE LINES:
+# ENVIRONMENT VARIABLES
 LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN", "").strip()
 ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-# High-Quality Engineering Blogs (The "Authentic" Sources)
+# High-Quality Engineering Blogs
 RSS_FEEDS = [
     "https://netflixtechblog.com/feed",
     "https://eng.uber.com/feed/",
@@ -29,33 +29,20 @@ RSS_FEEDS = [
     "https://techcrunch.com/feed/"
 ]
 
-# Browser headers so websites don't block our scraper
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+# Configure Gemini globally
 genai.configure(api_key=GEMINI_API_KEY)
 
-# # --- 1. SAFETY: MIMIC HUMAN BEHAVIOR ---
-# def mimic_human_timing():
-#     """Sleeps for 5-45 minutes to avoid 'bot' patterns."""
-#     print("🤖 Bot started. Initiating human mimicry...")
-#     sleep_seconds = random.randint(300, 2700) 
-#     minutes = sleep_seconds // 60
-#     print(f"😴 Sleeping for {minutes} minutes before posting...")
-#     time.sleep(sleep_seconds)
-#     print("⏰ Waking up! Ready to work.")
-
-
-# --- 1. SAFETY: MIMIC HUMAN BEHAVIOR ---
+# --- 1. UTILS & SAFETY ---
 def mimic_human_timing():
-    """TEST MODE: Sleep disabled."""
-    print("🤖 TEST MODE: Skipping sleep to run immediately.")
-    # time.sleep(random.randint(300, 2700))  <-- COMMENT THIS OUT
+    """Simple check to ensure we don't run too fast in production."""
+    # print("🤖 Bot sleeping for safety...")
+    # time.sleep(random.randint(60, 300)) # Uncomment for production
     return
 
-
-# --- 2. DATABASE: JSON HISTORY ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
         try:
@@ -66,33 +53,33 @@ def load_history():
     return []
 
 def save_history(history_data, new_entry):
-    """Adds the new post with Date, Day, and Title."""
     history_data.append(new_entry)
-    # Keep file size manageable (last 100 posts)
     if len(history_data) > 100:
         history_data = history_data[-100:]
-        
     with open(HISTORY_FILE, "w") as f:
         json.dump(history_data, f, indent=4)
 
 def is_already_posted(link, history_data):
-    # Check if this link exists in our JSON list
     for entry in history_data:
         if entry.get("web_link") == link:
             return True
     return False
 
-# --- 3. DEEP FETCHING (The "Pro" Upgrade) ---
+# --- 2. DEEP FETCHING ---
 def get_article_text(url):
     """Visits the site and scrapes real text paragraphs."""
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(r.content, 'html.parser')
-        # Get first 15 paragraphs to ensure we have context
+        
+        # Get paragraphs
         paragraphs = soup.find_all('p')
-        text = " ".join([p.get_text() for p in paragraphs[:15]])
-        return text.strip()
-    except:
+        
+        # Clean the text: remove newlines inside paragraphs and join
+        clean_text = " ".join([p.get_text().strip() for p in paragraphs[:20]]) # Increased to 20
+        return clean_text
+    except Exception as e:
+        print(f"Error scraping {url}: {e}")
         return None
 
 def fetch_fresh_news(history_data):
@@ -100,20 +87,25 @@ def fetch_fresh_news(history_data):
     
     for feed_url in RSS_FEEDS:
         print(f"Checking feed: {feed_url}...")
-        feed = feedparser.parse(feed_url)
+        try:
+            feed = feedparser.parse(feed_url)
+        except:
+            continue
+            
         if not feed.entries: continue
         
         for entry in feed.entries[:3]:
             if not is_already_posted(entry.link, history_data):
                 print(f"🔍 Found candidate: {entry.title}")
                 
-                # Get the Full Context (Deep Scrape)
                 full_text = get_article_text(entry.link)
-                if not full_text or len(full_text) < 200:
+                
+                # Validation: If text is too short, the scraper probably failed
+                if not full_text or len(full_text) < 300:
                     print("   -> Content too short/unreadable. Skipping.")
                     continue
                 
-                # Get Image (Optional)
+                # Get Image
                 image_url = None
                 try:
                     r = requests.get(entry.link, headers=HEADERS, timeout=5)
@@ -130,68 +122,60 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-
+# --- 3. AI GENERATION (THE FIX) ---
 def generate_viral_post(news_item):
     """
-    Generates content using the Gemini REST API directly (Bypassing the buggy library).
+    Generates content using the Official Gemini SDK.
     """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
-    prompt_text = f"""
-    Act as a Senior Software Architect. Read this technical article context:
-    "{news_item['full_text'][:2500]}..."
-    
-    Write a LinkedIn post.
-    Rules:
-    1. Start with a Hook (a specific technical insight or "Hot Take").
-    2. Explain WHY this matters to developers in 1-2 sentences.
-    3. Use bullet points if listing features.
-    4. End with a thought-provoking question.
-    5. Link: {news_item['link']}
-    6. Tags: #tech #engineering #learning
-    7. Keep it under 200 words.
-    """
-    
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt_text}]
-        }]
-    }
-    
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        if response.status_code == 200:
-            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        # A much stricter prompt to force the summary
+        prompt_text = f"""
+        You are a Tech Influencer and Software Architect on LinkedIn. 
+        Write a high-quality LinkedIn post about this article.
+        
+        ARTICLE TITLE: {news_item['title']}
+        ARTICLE CONTENT: "{news_item['full_text'][:4000]}..."
+        
+        STRICT FORMAT REQUIREMENTS:
+        1. **The Hook**: A catchy 1-sentence opening about why this news matters.
+        2. **The Summary**: 3 bullet points (use emoji '🔹') summarizing the key technical takeaways.
+        3. **The Insight**: A short paragraph (2 sentences) adding your professional opinion.
+        4. **Call to Action**: Ask a question to drive comments.
+        5. **The Link**: Place this link at the very bottom: {news_item['link']}
+        6. **Tags**: #tech #programming #softwareengineering
+        
+        Tone: Professional, Insightful, yet accessible.
+        Do not use markdown bolding (like **text**) for the body text, only for headers.
+        """
+        
+        response = model.generate_content(prompt_text)
+        
+        if response.text:
+            return response.text.strip()
         else:
-            print(f"⚠️ AI Error {response.status_code}: {response.text}")
-            # Fallback text if AI fails
-            return f"🔥 Breaking Tech News: {news_item['title']}\n\nRead more here: {news_item['link']}\n\n#tech #news"
+            raise Exception("Empty response from AI")
             
     except Exception as e:
-        print(f"⚠️ AI Connection Failed: {e}")
-        return f"Interesting update in tech: {news_item['title']}\n{news_item['link']}"
+        print(f"⚠️ AI Generation Failed: {e}")
+        # Fallback only if AI crashes
+        return f"🔥 Just In: {news_item['title']}\n\nHere is a quick update on this topic.\n\nRead the full story: {news_item['link']}\n\n#tech #news"
 
-
-
-
-
-# --- 5. LINKEDIN PUBLISHING ---
+# --- 4. LINKEDIN PUBLISHING ---
 def post_to_linkedin(content, image_url):
+    print("📤 Uploading to LinkedIn...")
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json",
         "X-Restli-Protocol-Version": "2.0.0"
     }
     
-    # Register & Upload Image (If available)
     asset = None
+    # 1. Image Upload Process
     if image_url:
         try:
+            print("   -> Registering image...")
             reg_resp = requests.post(
                 "https://api.linkedin.com/v2/assets?action=registerUpload",
                 headers=headers,
@@ -207,12 +191,15 @@ def post_to_linkedin(content, image_url):
             upload_url = data['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
             asset = data['value']['asset']
             
-            requests.put(upload_url, data=requests.get(image_url, headers=HEADERS).content, headers={"Authorization": f"Bearer {ACCESS_TOKEN}"})
-        except:
-            print("⚠️ Image upload failed. Posting text only.")
+            print("   -> Uploading image binary...")
+            img_data = requests.get(image_url, headers=HEADERS).content
+            requests.put(upload_url, data=img_data, headers={"Authorization": f"Bearer {ACCESS_TOKEN}"})
+            print("   -> Image uploaded successfully.")
+        except Exception as e:
+            print(f"⚠️ Image upload failed: {e}")
             asset = None
 
-    # Create Post
+    # 2. Post Creation
     post_body = {
         "author": LINKEDIN_PERSON_URN,
         "lifecycleState": "PUBLISHED",
@@ -227,7 +214,12 @@ def post_to_linkedin(content, image_url):
     }
     
     r = requests.post("https://api.linkedin.com/v2/ugcPosts", headers=headers, json=post_body)
-    return r.status_code == 201
+    
+    if r.status_code == 201:
+        return True
+    else:
+        print(f"❌ LinkedIn Error: {r.text}")
+        return False
 
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
@@ -241,12 +233,17 @@ if __name__ == "__main__":
         exit()
         
     print(f"🚀 Drafting post for: {news['title']}")
+    
+    # Generate the high-quality content
     post_text = generate_viral_post(news)
+    print("------------------------------------------------")
+    print("📝 GENERATED CONTENT PREVIEW:")
+    print(post_text)
+    print("------------------------------------------------")
     
     if post_to_linkedin(post_text, news['image_url']):
-        print("✅ Posted to LinkedIn!")
+        print("✅ Posted to LinkedIn Successfully!")
         
-        # Create Detailed History Entry
         now = datetime.datetime.now()
         new_record = {
             "date": now.strftime("%Y-%m-%d"),
@@ -258,4 +255,4 @@ if __name__ == "__main__":
         save_history(history, new_record)
         print("📁 History Updated.")
     else:
-        print("❌ LinkedIn API Error.")
+        print("❌ Final Posting Failed.")
