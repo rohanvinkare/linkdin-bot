@@ -11,7 +11,8 @@ from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
-LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_PERSON_URN", "").strip() 
+# UPDATED: Matches your workflow file name (LINKEDIN_URN)
+LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN", "").strip() 
 ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
@@ -153,7 +154,10 @@ def generate_linkedin_post(article):
 
 # --- 6. LINKEDIN API ---
 def post_to_linkedin(content):
-    if not ACCESS_TOKEN or not LINKEDIN_PERSON_URN: return False
+    if not ACCESS_TOKEN or not LINKEDIN_PERSON_URN:
+        print("❌ Error: Missing credentials.")
+        return False
+        
     url = "https://api.linkedin.com/v2/ugcPosts"
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0"}
     clean_urn = LINKEDIN_PERSON_URN.replace("urn:li:person:", "")
@@ -174,8 +178,11 @@ def post_to_linkedin(content):
 # --- HISTORY UTILS ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        try: with open(HISTORY_FILE, "r") as f: return json.load(f)
-        except: return []
+        try: 
+            with open(HISTORY_FILE, "r") as f: 
+                return json.load(f)
+        except: 
+            return []
     return []
 
 def save_history(history, link):
@@ -197,10 +204,13 @@ if __name__ == "__main__":
     if best_article:
         print(f"🚀 Selected: {best_article['title']}")
         post_content = generate_linkedin_post(best_article)
-        if post_content and post_to_linkedin(post_content):
-            print("✅ Published Successfully!")
-            save_history(history, best_article['link'])
-        else: print("❌ Failed to publish.")
+        if post_content:
+            print("📝 Content Generated. Posting...")
+            if post_to_linkedin(post_content):
+                print("✅ Published Successfully!")
+                save_history(history, best_article['link'])
+            else: print("❌ Failed to publish.")
+        else: print("❌ Failed to generate content.")
     else: print("😴 No articles found.")
 
 
