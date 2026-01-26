@@ -117,7 +117,32 @@ def fetch_fresh_news(history_data):
                 }
     return None
 
-# --- 3. AI GENERATION (ROBUST MULTI-MODEL VERSION) ---
+# --- 3. AUTO-DISCOVERY AI GENERATION (THE FIX) ---
+def get_valid_models():
+    """
+    Asks Google: 'What models can I actually use right now?'
+    Returns a list of valid model names.
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            # Filter for models that support 'generateContent'
+            valid_models = [
+                m['name'].replace('models/', '') 
+                for m in data.get('models', []) 
+                if 'generateContent' in m.get('supportedGenerationMethods', [])
+            ]
+            # Sort them to prefer 'Flash' (Fast) and 'Pro' (Quality)
+            valid_models.sort(key=lambda x: ('flash' not in x, 'pro' not in x))
+            return valid_models
+        else:
+            print(f"   ⚠️ Could not list models ({response.status_code}). Using fallbacks.")
+            return ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"]
+    except:
+        return ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"]
+
 def generate_viral_post(news_item):
     print("   🧠 Asking Gemini to write the post...")
     
@@ -128,41 +153,51 @@ def generate_viral_post(news_item):
     CONTENT: "{news_item['full_text'][:6000]}..."
     
     STRICT OUTPUT FORMAT:
-    1. Start with a catchy one-sentence Hook (No emojis in the hook).
-    2. Add a blank line.
-    3. Add "💡 **The Gist:**" followed by 3 short bullet points summarizing the technical details (Use '🔹').
-    4. Add a blank line.
-    5. Add "📉 **Why it Matters:**" followed by one sentence on the impact.
-    6. Add a blank line.
-    7. End with a Question to the audience.
-    8. Place this link at the very end: {news_item['link']}
-    9. Tags: #tech #news #engineering
+    1. Start with a catchy one-sentence Hook.
+    2. Add "💡 The Gist:" followed by 3 short bullet points summarizing the technical details.
+    3. Add "📉 Why it Matters:" followed by one sentence on the impact.
+    4. End with a Question to the audience.
+    5. Place this link at the very end: {news_item['link']}
+    6. Tags: #tech #news #engineering
     """
 
-    # LIST OF MODELS TO TRY (If one fails, it tries the next)
-    models_to_try = [
-        "gemini-2.0-flash-exp",   # Newest/Fastest
-        "gemini-1.5-flash",       # Standard
-        "gemini-1.5-pro",         # High Quality
-        "gemini-pro"              # Legacy Fallback
-    ]
+    # 1. Get the list of ACTUALLY available models
+    available_models = get_valid_models()
+    print(f"   ℹ️  Available Models: {available_models[:3]}...")
 
-    for model_name in models_to_try:
+    for model_name in available_models:
         print(f"   👉 Trying Model: {model_name}...")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
-        try:
-            response = requests.post(url, headers=headers, json=payload)
-            
-            if response.status_code == 200:
-                print(f"   ✅ Success with {model_name}!")
-                return response.json()['candidates'][0]['content']['parts'][0]['text']
-            else:
-                print(f"   ⚠️ {model_name} Failed ({response.status_code}). Trying next...")
-        except Exception as e:
-            print(f"   ⚠️ Connection Error on {model_name}: {e}")
+        # RETRY LOOP for Error 429 (Rate Limit)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, headers=headers, json=payload)
+                
+                if response.status_code == 200:
+                    print(f"   ✅ Success with {model_name}!")
+                    return response.json()['candidates'][0]['content']['parts'][0]['text']
+                
+                elif response.status_code == 429:
+                    wait_time = (attempt + 1) * 5  # Wait 5s, 10s, 15s
+                    print(f"      ⏳ Rate Limited (429). Waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue # Try again
+                
+                elif response.status_code == 404:
+                    print(f"      ❌ Model {model_name} not found. Skipping.")
+                    break # Break retry loop, move to next model
+                
+                else:
+                    print(f"      ⚠️ Error {response.status_code}: {response.text}")
+                    break # Unknown error, move to next model
+                    
+            except Exception as e:
+                print(f"      🚨 Connection Error: {e}")
+                break
 
     print("   🚨 ALL AI MODELS FAILED.")
     return None
