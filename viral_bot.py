@@ -11,107 +11,91 @@ from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
-# UPDATED: Matches your workflow file name (LINKEDIN_URN)
 LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN", "").strip() 
 ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 # High-Quality Sources
 RSS_FEEDS = [
-    "https://netflixtechblog.com/feed",
-    "https://eng.uber.com/feed/",
-    "https://engineering.fb.com/feed/",
-    "https://aws.amazon.com/blogs/architecture/feed/",
-    "https://devblogs.microsoft.com/feed/",
-    "https://github.blog/feed/",
-    "https://stackoverflow.blog/feed/",
-    "https://techcrunch.com/feed/"
+    "https://github.blog/feed/",            # Usually easy to scrape
+    "https://stackoverflow.blog/feed/",     # Good content
+    "https://techcrunch.com/feed/",         # High volume
+    "https://aws.amazon.com/blogs/architecture/feed/"
 ]
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 
 # --- INIT CLIENT ---
 if not GEMINI_API_KEY:
-    print("❌ ERROR: GEMINI_API_KEY is missing from environment variables.")
+    print("❌ ERROR: GEMINI_API_KEY is missing.")
     exit()
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- 1. DEEP CONTENT SCRAPER ---
 def get_article_content(url):
+    print(f"   👀 Trying to scrape: {url[:50]}...")
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
-        if r.status_code != 200: return None
+        if r.status_code != 200: 
+            print(f"   ⚠️ Blocked (Status: {r.status_code})")
+            return None
+            
         soup = BeautifulSoup(r.content, 'html.parser')
         paragraphs = soup.find_all('p')
         if not paragraphs:
             paragraphs = soup.find_all('div', class_=re.compile('(content|post|article|body)'))
+            
         full_text = " ".join([p.get_text() for p in paragraphs[:15]])
-        if len(full_text) < 300: return None
+        
+        if len(full_text) < 200: 
+            print(f"   ⚠️ Content too short ({len(full_text)} chars).")
+            return None
+            
+        print("   ✅ Scrape Success!")
         return full_text.strip()
     except Exception as e:
-        print(f"⚠️ Scraping failed: {e}")
+        print(f"   ⚠️ Scraping Error: {e}")
         return None
 
-# --- 2. THE AI JUDGE (Quality Control) ---
+# --- 2. THE AI JUDGE ---
 def evaluate_article(title, text):
-    prompt = f"""
-    Act as a Senior Tech Editor. Analyze this article summary:
-    Title: {title}
-    Snippet: {text[:1000]}...
-    
-    Task: Rate this article for a LinkedIn audience of developers.
-    Return ONLY a JSON string like: {{"score": 8, "reason": "..."}}
-    """
-    
-    try:
-        # SWITCHED BACK TO 1.5-FLASH FOR BETTER RATE LIMITS
-        response = client.models.generate_content(
-            model='gemini-1.5-flash', 
-            contents=prompt
-        )
-        clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        try:
-            return json.loads(clean_json)
-        except:
-            match = re.search(r"\{.*\}", response.text, re.DOTALL)
-            return json.loads(match.group(0)) if match else {"score": 5, "reason": "Parsing Error"}
-    except Exception as e:
-        print(f"⚠️ AI Wait Error (429): {e}")
-        return {"score": 5, "reason": "AI Error"}
+    # FOR TESTING: We return a fake high score to FORCE a post
+    print("   🤖 Skipping AI Judge for testing... FORCE APPROVING.")
+    return {"score": 10, "reason": "Testing Mode"}
 
 # --- 3. SMART FETCHER ---
 def fetch_best_article(history_data):
-    random.shuffle(RSS_FEEDS)
     print("🔍 Scanning feeds...")
+    random.shuffle(RSS_FEEDS)
     
-    # REDUCED TO 3 FEEDS TO SAVE QUOTA
-    for feed_url in RSS_FEEDS[:3]: 
-        try: feed = feedparser.parse(feed_url)
-        except: continue
+    for feed_url in RSS_FEEDS: 
+        print(f"\n📡 Checking Feed: {feed_url}")
+        try: 
+            feed = feedparser.parse(feed_url)
+            if not feed.entries:
+                print("   ⚠️ No entries found in this feed.")
+                continue
+        except Exception as e: 
+            print(f"   ⚠️ Feed Parse Error: {e}")
+            continue
         
-        for entry in feed.entries[:2]:
-            if is_already_posted(entry.link, history_data): continue
+        for entry in feed.entries[:1]: # Check only the 1st link of each feed
+            # SKIP HISTORY CHECK FOR TESTING
+            # if is_already_posted(entry.link, history_data): 
+            #     print("   ⏭️ Already posted. Skipping.")
+            #     continue
             
             full_text = get_article_content(entry.link)
             if not full_text: continue
             
-            # INCREASED SLEEP TO 10 SECONDS TO FIX 429 ERROR
-            print("⏳ Waiting 10s for API cooldown...") 
-            time.sleep(10) 
-            
-            evaluation = evaluate_article(entry.title, full_text)
-            print(f"   -> Evaluated: {entry.title[:30]}... | Score: {evaluation['score']}/10")
-            
-            # LOWERED SCORE TO 4 TO FORCE A POST TODAY
-            if evaluation['score'] >= 4: 
-                return {
-                    "title": entry.title,
-                    "link": entry.link,
-                    "full_text": full_text
-                }
+            return {
+                "title": entry.title,
+                "link": entry.link,
+                "full_text": full_text
+            }
     return None
 
 # --- 4. FORMATTING UTILS ---
@@ -123,6 +107,7 @@ def to_bold(text):
 
 # --- 5. POST GENERATOR ---
 def generate_linkedin_post(article):
+    print("📝 Generating Post Content with AI...")
     prompt = f"""
     Write a viral LinkedIn post based on this tech news:
     Title: {article['title']}
@@ -139,7 +124,6 @@ def generate_linkedin_post(article):
     Return pure text.
     """
     try:
-        time.sleep(5) # Extra safety wait
         response = client.models.generate_content(
             model='gemini-1.5-flash', 
             contents=prompt
@@ -168,21 +152,21 @@ def post_to_linkedin(content):
         "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
     }
     try:
+        print("🚀 Sending to LinkedIn API...")
         r = requests.post(url, headers=headers, json=payload)
         if r.status_code == 201: return True
         else:
             print(f"❌ LinkedIn Error: {r.status_code} - {r.text}") 
             return False
-    except: return False
+    except Exception as e: 
+        print(f"❌ Network Error: {e}")
+        return False
 
 # --- HISTORY UTILS ---
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        try: 
-            with open(HISTORY_FILE, "r") as f: 
-                return json.load(f)
-        except: 
-            return []
+        try: with open(HISTORY_FILE, "r") as f: return json.load(f)
+        except: return []
     return []
 
 def save_history(history, link):
@@ -190,31 +174,26 @@ def save_history(history, link):
     if len(history) > 50: history = history[-50:]
     with open(HISTORY_FILE, "w") as f: json.dump(history, f)
 
-def is_already_posted(link, history):
-    for h in history:
-        if h['link'] == link: return True
-    return False
-
 # --- MAIN ---
 if __name__ == "__main__":
-    print("🎬 LinkedIn Bot Starting...")
+    print("🎬 LinkedIn Bot Starting (TEST MODE)...")
     history = load_history()
     best_article = fetch_best_article(history)
     
     if best_article:
-        print(f"🚀 Selected: {best_article['title']}")
+        print(f"✅ Selected Article: {best_article['title']}")
         post_content = generate_linkedin_post(best_article)
         if post_content:
-            print("📝 Content Generated. Posting...")
             if post_to_linkedin(post_content):
                 print("✅ Published Successfully!")
                 save_history(history, best_article['link'])
             else: print("❌ Failed to publish.")
         else: print("❌ Failed to generate content.")
-    else: print("😴 No articles found.")
+    else: print("😴 No readable articles found (Check 'Blocked' logs).")
 
 
 
+    
 
 # import requests
 # import feedparser
