@@ -6,7 +6,7 @@ import time
 import os
 import datetime
 import re
-from google import genai
+from google import genai 
 from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
@@ -31,12 +31,13 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Configure Gemini
+# --- INIT CLIENT (NEW SYNTAX) ---
 if not GEMINI_API_KEY:
     print("❌ ERROR: GEMINI_API_KEY is missing from environment variables.")
     exit()
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Initialize the new Client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- 1. DEEP CONTENT SCRAPER ---
 def get_article_content(url):
@@ -48,7 +49,6 @@ def get_article_content(url):
         
         # Fallback for sites that block bots (403/401)
         if r.status_code != 200:
-            print(f"⚠️ Access denied or error ({r.status_code}) for: {url}")
             return None
             
         soup = BeautifulSoup(r.content, 'html.parser')
@@ -75,11 +75,7 @@ def get_article_content(url):
 def evaluate_article(title, text):
     """
     Asks Gemini: 'Is this article actually important?'
-    Returns a score (1-10) and a reason.
-    Includes Robust JSON Parsing.
     """
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
     prompt = f"""
     Act as a Senior Tech Editor. Analyze this article summary:
     
@@ -96,24 +92,24 @@ def evaluate_article(title, text):
     """
     
     try:
-        response = model.generate_content(prompt)
+        # NEW: Using client.models.generate_content
+        response = client.models.generate_content(
+            model='gemini-2.0-flash', 
+            contents=prompt
+        )
         raw_output = response.text
         
-        # --- ROBUST JSON PARSING START ---
-        # 1. Try stripping markdown
+        # --- ROBUST JSON PARSING ---
         clean_json = raw_output.replace("```json", "").replace("```", "").strip()
         
         try:
             return json.loads(clean_json)
         except json.JSONDecodeError:
-            # 2. Regex Search Fallback (Finds content between first { and last })
             match = re.search(r"\{.*\}", raw_output, re.DOTALL)
             if match:
                 return json.loads(match.group(0))
             else:
-                print(f"⚠️ JSON Parse Fail. Raw Output: {raw_output}")
                 return {"score": 5, "reason": "Parsing Error"}
-        # --- ROBUST JSON PARSING END ---
         
     except Exception as e:
         print(f"⚠️ AI Evaluation Error: {e}")
@@ -167,8 +163,6 @@ def to_bold(text):
 
 # --- 5. POST GENERATOR ---
 def generate_linkedin_post(article):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
     prompt = f"""
     Write a viral LinkedIn post based on this tech news:
     Title: {article['title']}
@@ -186,7 +180,11 @@ def generate_linkedin_post(article):
     """
     
     try:
-        response = model.generate_content(prompt)
+        # NEW: Using client.models.generate_content
+        response = client.models.generate_content(
+            model='gemini-2.0-flash', 
+            contents=prompt
+        )
         raw_text = response.text.strip()
         
         if not raw_text:
@@ -195,7 +193,7 @@ def generate_linkedin_post(article):
         # Apply Bold to the first line manually
         lines = raw_text.split('\n')
         if lines:
-            lines[0] = to_bold(lines[0].replace("*", "").replace("#", "")) # Remove markdown chars
+            lines[0] = to_bold(lines[0].replace("*", "").replace("#", "")) 
         
         final_post = "\n".join(lines) + f"\n\n🔗 Read more: {article['link']}"
         return final_post
@@ -239,7 +237,7 @@ def post_to_linkedin(content):
             return True
         else:
             print(f"❌ LinkedIn API Error: {r.status_code}")
-            print(f"❌ Details: {r.text}") # Print exact error details
+            print(f"❌ Details: {r.text}") 
             return False
             
     except Exception as e:
@@ -293,9 +291,6 @@ if __name__ == "__main__":
             print("❌ Error generating post content.")
     else:
         print("😴 No articles scored high enough (7/10) to post right now.")
-
-
-
 
 
 
