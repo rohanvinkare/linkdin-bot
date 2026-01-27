@@ -72,6 +72,37 @@ def clean_text_for_linkedin(text):
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
+# --- DYNAMIC MODEL SELECTOR (THE FIX) ---
+def get_valid_model_name():
+    """Asks Google which models are actually available to avoid 404s"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            # Find any model that supports 'generateContent'
+            available_models = [
+                m['name'].replace("models/", "") 
+                for m in data.get('models', []) 
+                if 'generateContent' in m.get('supportedGenerationMethods', [])
+            ]
+            
+            # Prefer Flash, then Pro, then anything else
+            if "gemini-1.5-flash" in available_models: return "gemini-1.5-flash"
+            if "gemini-1.5-flash-latest" in available_models: return "gemini-1.5-flash-latest"
+            if "gemini-1.0-pro" in available_models: return "gemini-1.0-pro"
+            
+            # If none of the specific ones exist, return the first available one
+            if available_models:
+                print(f"   ⚠️ Preferred model not found. Using fallback: {available_models[0]}")
+                return available_models[0]
+                
+    except Exception as e:
+        print(f"   ⚠️ Could not fetch model list: {e}")
+    
+    # Absolute fallback if everything fails
+    return "gemini-1.5-flash-latest"
+
 # --- INTELLIGENT SCRAPER ---
 def get_article_details(url, mode):
     try:
@@ -135,16 +166,17 @@ def fetch_content(history_data):
         except: continue
     return None
 
-# --- AI WRITER (DEBUGGED) ---
+# --- AI WRITER ---
 def generate_viral_post(content_item):
-    print("   🧠 Asking Gemini...")
+    # 1. Dynamically get the correct model name
+    valid_model = get_valid_model_name()
+    print(f"   🧠 Asking Gemini ({valid_model})...")
     
-    # 1. Check API Key
     if not GEMINI_API_KEY:
-        print("   ❌ ERROR: GEMINI_API_KEY is missing! Set it in your environment variables.")
+        print("   ❌ ERROR: GEMINI_API_KEY is missing!")
         return None
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{valid_model}:generateContent?key={GEMINI_API_KEY}"
     
     base_structure = """
     STRICT FORMATTING RULES:
@@ -199,11 +231,9 @@ def generate_viral_post(content_item):
     try:
         resp = requests.post(url, headers={"Content-Type": "application/json"}, json={"contents": [{"parts": [{"text": prompt}]}]})
         
-        # --- DEBUG BLOCK ---
         if resp.status_code != 200:
             print(f"   ❌ GOOGLE API ERROR {resp.status_code}: {resp.text}")
             return None
-        # -------------------
 
         text = resp.json()['candidates'][0]['content']['parts'][0]['text']
         return clean_text_for_linkedin(text)
@@ -276,7 +306,6 @@ if __name__ == "__main__":
             
         post_text = generate_viral_post(content)
         if not post_text: 
-            # NOW YOU WILL SEE WHY IT FAILED
             continue 
         
         print("\n--- PREVIEW ---")
