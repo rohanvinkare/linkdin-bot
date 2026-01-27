@@ -1,4 +1,4 @@
-name: Daily Tech Posts (2x Human Mode)
+name: LinkedIn Auto-Poster (Concept-First Strategy)
 
 on:
   schedule:
@@ -8,37 +8,103 @@ on:
     # EVENING POST: 05:30 PM IST (12:00 UTC)
     - cron: '0 12 * * *'
     
-  workflow_dispatch: # Allows manual button click testing
+  workflow_dispatch: # Manual trigger for testing
 
 permissions:
-  contents: write # REQUIRED to save history.json
+  contents: write # Required to commit history.json
 
 jobs:
-  run-bot:
+  post-to-linkedin:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
         with:
-          python-version: '3.10'
-
-      - name: Install Libraries
-        run: pip install requests feedparser google-generativeai beautifulsoup4
-
-      - name: Run Viral Bot
+          fetch-depth: 1 # Shallow clone for faster checkout
+      
+      - name: 🐍 Setup Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Cache pip dependencies for faster runs
+      
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests feedparser beautifulsoup4 lxml
+      
+      - name: 🔍 Verify Secrets (without exposing values)
+        run: |
+          echo "Checking required secrets..."
+          if [ -z "${{ secrets.LINKEDIN_TOKEN }}" ]; then
+            echo "❌ LINKEDIN_TOKEN is missing!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.LINKEDIN_URN }}" ]; then
+            echo "❌ LINKEDIN_URN is missing!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "❌ GEMINI_API_KEY is missing!"
+            exit 1
+          fi
+          echo "✅ All secrets are configured"
+      
+      - name: 🤖 Run LinkedIn Bot
         env:
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_URN: ${{ secrets.LINKEDIN_URN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python viral_bot.py
-
-      - name: Save History to Repo
         run: |
-          git config --global user.name 'ViralBot'
-          git config --global user.email 'bot@noreply.github.com'
-          git add history.json
-          # Only commit if history.json actually changed (avoids empty commit errors)
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update history log [skip ci]" && git push)
+          echo "🚀 Starting bot execution..."
+          python linkedin_bot_improved.py
+          
+          # Check if the script succeeded
+          if [ $? -eq 0 ]; then
+            echo "✅ Bot completed successfully"
+          else
+            echo "❌ Bot execution failed"
+            exit 1
+          fi
+      
+      - name: 💾 Commit History Updates
+        run: |
+          git config --local user.name 'LinkedIn Bot'
+          git config --local user.email 'bot@linkedin-automation.local'
+          
+          # Add history.json if it exists and has changes
+          if [ -f history.json ]; then
+            git add history.json
+            
+            # Only commit if there are actual changes
+            if git diff --staged --quiet; then
+              echo "ℹ️ No changes to history.json"
+            else
+              git commit -m "📝 Update post history [$(date +'%Y-%m-%d %H:%M UTC')] [skip ci]"
+              git push
+              echo "✅ History updated and pushed"
+            fi
+          else
+            echo "⚠️ history.json not found - skipping commit"
+          fi
+      
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## LinkedIn Bot Execution Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f history.json ]; then
+            TOTAL_POSTS=$(jq '. | length' history.json 2>/dev/null || echo "N/A")
+            echo "- **Total Posts in History:** $TOTAL_POSTS" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "- **Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status:** ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
