@@ -33,5 +33,10 @@
         "title": "Pinterest to lay off 15% of staff to redirect resources to AI",
         "web_link": "https://techcrunch.com/2026/01/27/pinterest-to-lay-off-15-of-staff-to-redirect-resources-to-ai/",
         "date": "2026-01-27"
+    },
+    {
+        "title": "Conversation: LLMs and the what/how loop",
+        "web_link": "https://martinfowler.com/articles/convo-what-how.html",
+        "date": "2026-01-27"
     }
 ]
