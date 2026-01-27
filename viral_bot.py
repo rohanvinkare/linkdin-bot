@@ -10,22 +10,27 @@ from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
-
-# Load Environment Variables
 LINKEDIN_PERSON_URN = os.environ.get("LINKEDIN_URN", "").strip()
 LINKEDIN_ACCESS_TOKEN = os.environ.get("LINKEDIN_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-# --- SOURCE MANAGEMENT ---
-# Group 1: News (30% Chance)
+# --- FALLBACK IMAGES (For Concepts that lack images) ---
+# These are royalty-free Unsplash images of servers, code, and whiteboards.
+FALLBACK_IMAGES = [
+    "https://images.unsplash.com/photo-1558494949-ef526b0042a0", # Servers
+    "https://images.unsplash.com/photo-1518770660439-4636190af475", # Chip/Circuit
+    "https://images.unsplash.com/photo-1555099962-4199c345e5dd", # Code screen
+    "https://images.unsplash.com/photo-1531403009284-440f080d1e12", # Whiteboarding
+    "https://images.unsplash.com/photo-1451187580459-43490279c0fa"  # Abstract Network
+]
+
+# --- SOURCES ---
 NEWS_FEEDS = [
     "https://feeds.feedburner.com/TheHackersNews", 
     "https://techcrunch.com/feed/",
-    "https://www.theverge.com/rss/index.xml",
-    "https://openai.com/blog/rss/"
+    "https://www.theverge.com/rss/index.xml"
 ]
 
-# Group 2: High-Quality Engineering (70% Chance)
 ENGINEERING_FEEDS = [
     "https://netflixtechblog.com/feed",           
     "https://eng.uber.com/feed/",                 
@@ -33,8 +38,9 @@ ENGINEERING_FEEDS = [
     "https://blog.bytebytego.com/feed",           
     "https://martinfowler.com/feed.atom",         
     "https://slack.engineering/feed/",            
-    "https://discord.com/blog/rss",               
-    "https://engineering.fb.com/feed/"
+    "https://engineering.fb.com/feed/",
+    "https://shopify.engineering/blog/feed",
+    "https://engineering.linkedin.com/blog.rss"
 ]
 
 HEADERS = {
@@ -62,267 +68,250 @@ def is_already_posted(link, title, history_data):
     return False
 
 def clean_text_for_linkedin(text):
-    """
-    LinkedIn does not support Markdown. This function:
-    1. Removes **bold** and ## Headers
-    2. Converts * bullets to emojis
-    3. Ensures spacing is correct
-    """
-    # Remove Bold/Italic markers
-    text = text.replace("**", "").replace("__", "")
-    
-    # Remove Markdown headers (## Title)
-    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
-    
-    # Convert standard bullet points (* or -) to Emojis
+    # 1. Force remove Markdown Bold/Headers
+    text = text.replace("**", "").replace("__", "").replace("##", "")
+    # 2. Force convert any bullet-like char to Emoji
     text = re.sub(r'^[\*\-]\s+', '🔹 ', text, flags=re.MULTILINE)
-    
-    # Ensure hashtags have a space before them if they are stuck to text
-    text = text.replace("#", " #")
-    text = re.sub(r'\s+#', ' #', text) # Fix double spaces
-    
+    # 3. Fix double spacing
+    text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
 # --- INTELLIGENT SCRAPER ---
-def get_article_text(url):
+def get_article_details(url, mode):
     try:
-        print(f"   ⬇️  Downloading: {url}")
+        print(f"   ⬇️  Scraping: {url}")
         r = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(r.content, 'html.parser')
-        possible_bodies = soup.select('article, .post-content, .entry-content, #article-body, .gh-content, .main-content')
-        target = possible_bodies[0] if possible_bodies else soup
-        paragraphs = target.find_all(['p', 'h2', 'li'])
-        text = "\n".join([p.get_text().strip() for p in paragraphs])
         
-        # QUALITY GATE 1: If text is too short, it's likely not a deep concept.
-        if len(text) < 1000: 
-            print("   ⚠️ Text too short (low quality). Skipping.")
-            return None
-        return text[:15000] 
+        # 1. Get Text
+        possible_bodies = soup.select('article, .post-content, .entry-content, #article-body, .gh-content')
+        target = possible_bodies[0] if possible_bodies else soup
+        text = "\n".join([p.get_text().strip() for p in target.find_all(['p', 'h2'])])
+        
+        if len(text) < 600: return None # Too short
+        
+        # 2. Get Image (The "Fix" for Concepts)
+        image_url = None
+        
+        # Strategy A: Meta Image (Best)
+        og_image = soup.find("meta", property="og:image")
+        if og_image and og_image.get("content"): 
+            image_url = og_image["content"]
+            
+        # Strategy B: Find first image in body (Often the diagram)
+        if not image_url:
+            first_img = target.find('img')
+            if first_img and first_img.get('src'):
+                src = first_img['src']
+                if src.startswith('http'): # Ensure it's a full link
+                    image_url = src
+        
+        # Strategy C: Fallback (Only for Concepts)
+        if not image_url and mode == "CONCEPT":
+            print("   ⚠️ No image found. Using Generic System Design Fallback.")
+            image_url = random.choice(FALLBACK_IMAGES)
+        
+        if not image_url:
+            print("   ⚠️ No image found and not a concept. SKIP.")
+            return None 
+            
+        return {"text": text[:12000], "image": image_url}
+        
     except Exception as e:
-        print(f"   ⚠️ Scraping error: {e}")
+        print(f"   ⚠️ Error: {e}")
         return None
 
 def fetch_content(history_data):
-    # --- 70% / 30% LOGIC ---
-    # Random > 0.3 means 70% chance (Concepts)
-    # Random <= 0.3 means 30% chance (News)
-    mode = "CONCEPT" if random.random() > 0.3 else "NEWS"
+    # --- PROBABILITY FIX ---
+    # > 0.15 means 85% chance of CONCEPT
+    # <= 0.15 means 15% chance of NEWS
+    mode = "CONCEPT" if random.random() > 0.15 else "NEWS"
     sources = ENGINEERING_FEEDS if mode == "CONCEPT" else NEWS_FEEDS
-    
-    print(f"🎲 Probability Roll: Selected {mode} Mode")
     random.shuffle(sources)
+    
+    print(f"🎲 Mode Selected: {mode}")
     
     for feed_url in sources:
         try:
             feed = feedparser.parse(feed_url)
-            if not feed.entries: continue
-        except: continue
-        
-        for entry in feed.entries[:3]: # Check top 3 posts
-            if not is_already_posted(entry.link, entry.title, history_data):
-                full_text = get_article_text(entry.link)
-                if not full_text: continue
+            for entry in feed.entries[:3]:
+                if is_already_posted(entry.link, entry.title, history_data): continue
                 
-                image_url = None
-                try:
-                    if 'media_content' in entry: image_url = entry.media_content[0]['url']
-                    # Fallback to Media Thumbnail if available
-                    elif 'media_thumbnail' in entry: image_url = entry.media_thumbnail[0]['url']
-                except: pass
-
+                # Pass 'mode' so we know whether to use fallback images
+                details = get_article_details(entry.link, mode)
+                if not details: continue 
+                
                 return {
-                    "type": mode, 
+                    "type": mode,
                     "title": entry.title,
                     "link": entry.link,
-                    "full_text": full_text,
-                    "image_url": image_url
+                    "full_text": details["text"],
+                    "image_url": details["image"]
                 }
+        except: continue
     return None
 
-# --- AI ENGINE ---
+# --- AI WRITER ---
 def generate_viral_post(content_item):
-    print("   🧠 Asking Gemini to write...")
+    print("   🧠 asking Gemini...")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
-    # 1. Fetch Models
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    models = ["gemini-1.5-flash"]
-    try:
-        data = requests.get(url).json()
-        models = [m['name'].replace('models/', '') for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        models.sort(key=lambda x: ('flash' not in x, 'pro' in x))
-    except: pass
-
-    # --- PROMPTS ---
+    # Unified Structure
+    base_structure = """
+    STRICT FORMATTING RULES:
+    1. NO Markdown bold (**). Use CAPS for emphasis if needed.
+    2. NO Paragraph blocks. Use bullet points.
+    3. Use these emojis: 🔹, 👉, 🚀, ⚠️.
+    """
+    
     if content_item['type'] == "CONCEPT":
         prompt = f"""
-        Act as a Principal Staff Engineer at a FAANG company.
+        Act as a Principal Staff Engineer.
+        Topic: {content_item['title']}
+        Context: {content_item['full_text'][:5000]}
         
-        TASK: Review this article and write a LinkedIn post.
-        ARTICLE: "{content_item['title']}"
-        TEXT SAMPLE: "{content_item['full_text'][:6000]}..."
+        {base_structure}
         
-        INSTRUCTIONS:
-        1. If this is marketing fluff, output: SKIP.
-        2. Explain the Architecture and Trade-offs.
-        3. Be 100% technically accurate.
+        OUTPUT FORMAT:
+        [Counter-intuitive Hook Question]
         
-        FORMATTING:
-        - NO Markdown (**). 
-        - Use these emojis: 🔹, ⚙️, 🚀, 👉.
+        [Brief Context]
         
-        OUTPUT TEMPLATE:
-        [Hook about a misconception]
-        
-        [The "Aha!" moment]
+        The Architecture:
+        🔹 [Point 1]
+        🔹 [Point 2]
         
         The Trade-offs:
-        🔹 [Pro]
-        🔹 [Con]
+        ⚠️ [Risk/Con]
+        🚀 [Benefit/Pro]
         
-        [Conclusion]
-        
-        👇 Thoughts?
+        [1-line Conclusion]
         
         🔗 {content_item['link']}
-        
-        #systemdesign #engineering #backend
+        #systemdesign #engineering
         """
-    else:
+    else: 
         prompt = f"""
-        Act as a Tech Lead. Write a short reaction to this news.
-        NEWS: "{content_item['title']}"
-        TEXT: "{content_item['full_text'][:4000]}..."
+        Act as a Cynical Tech Lead.
+        News: {content_item['title']}
+        Context: {content_item['full_text'][:4000]}
         
-        If this is boring, output: SKIP.
+        {base_structure}
         
-        FORMAT:
-        [Provocative Hook]
-        [Why this matters for engineers]
-        [Cynical/Realist take]
+        OUTPUT FORMAT:
+        [ provocative hook ]
+        
+        👉 The TL;DR:
+        🔹 [Fact 1]
+        🔹 [Fact 2]
+        
+        👉 Why it matters:
+        🔹 [Engineering Impact 1]
+        🔹 [Market Impact 2]
+        
+        [Cynical 1-line take]
         
         🔗 {content_item['link']}
         #tech #news
         """
 
-    for model in models:
-        try:
-            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-            resp = requests.post(api_url, headers={"Content-Type": "application/json"}, json={"contents": [{"parts": [{"text": prompt}]}]})
-            
-            if resp.status_code == 200:
-                text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-                if "SKIP" in text or len(text) < 50:
-                    print(f"   ⚠️ AI decided this article is low quality (SKIP).")
-                    return "SKIP"
-                
-                return clean_text_for_linkedin(text)
-        except: continue
-        
+    try:
+        resp = requests.post(url, headers={"Content-Type": "application/json"}, json={"contents": [{"parts": [{"text": prompt}]}]})
+        if resp.status_code == 200:
+            text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+            return clean_text_for_linkedin(text)
+    except Exception as e:
+        print(f"AI Error: {e}")
     return None
 
-# --- LINKEDIN POSTER (FIXED IMAGE UPLOAD) ---
+# --- POSTER ---
 def post_to_linkedin(content, image_url):
-    print("📤 Uploading to LinkedIn...")
-    headers = {"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0"}
+    print(f"   📤 Uploading Image: {image_url}")
     
-    asset = None
+    # 1. Download Image
+    try:
+        img_data = requests.get(image_url, headers=HEADERS, timeout=10).content
+    except:
+        print("   ❌ Failed to download image.")
+        return False
     
-    # 1. Handle Image Upload if URL exists
-    if image_url:
-        print(f"   🖼️  Found Image: {image_url}")
-        try:
-            # Step A: Register the upload
-            reg_body = {
-                "registerUploadRequest": {
-                    "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
-                    "owner": LINKEDIN_PERSON_URN,
-                    "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}]
-                }
+    # 2. Register
+    reg = requests.post(
+        "https://api.linkedin.com/v2/assets?action=registerUpload",
+        headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"},
+        json={
+            "registerUploadRequest": {
+                "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+                "owner": LINKEDIN_PERSON_URN,
+                "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}]
             }
-            reg = requests.post("https://api.linkedin.com/v2/assets?action=registerUpload", headers=headers, json=reg_body)
-            
-            if reg.status_code == 200:
-                upload_url = reg.json()['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
-                asset = reg.json()['value']['asset']
-                
-                # Step B: Download Image & Upload to LinkedIn
-                # Note: We use a stream to handle binary data correctly
-                img_data = requests.get(image_url, headers=HEADERS, stream=True)
-                if img_data.status_code == 200:
-                    up = requests.put(upload_url, data=img_data.content, headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"})
-                    if up.status_code != 201:
-                        print(f"   ⚠️ Image upload binary failed. Status: {up.status_code}")
-                        asset = None
-                else:
-                    print("   ⚠️ Could not download image from source.")
-                    asset = None
-            else:
-                print(f"   ⚠️ Image registration failed: {reg.text}")
-        except Exception as e:
-            print(f"   ⚠️ Image Error: {e}")
-            asset = None
-
-    # 2. Construct the Post
+        }
+    )
+    
+    if reg.status_code != 200: return False
+    
+    upload_url = reg.json()['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
+    asset = reg.json()['value']['asset']
+    
+    # 3. Upload Binary
+    up = requests.put(upload_url, data=img_data, headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"})
+    
+    if up.status_code != 201: 
+        print("❌ Image upload failed. ABORTING POST.")
+        return False
+    
+    # 4. Create Post
     post_body = {
         "author": LINKEDIN_PERSON_URN,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
                 "shareCommentary": {"text": content},
-                "shareMediaCategory": "IMAGE" if asset else "NONE",
-                "media": [{"status": "READY", "media": asset}] if asset else []
+                "shareMediaCategory": "IMAGE",
+                "media": [{"status": "READY", "media": asset}]
             }
         },
         "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
     }
     
-    r = requests.post("https://api.linkedin.com/v2/ugcPosts", headers=headers, json=post_body)
-    
-    if r.status_code == 201:
-        return True
-    else:
-        print(f"❌ LinkedIn Error: {r.text}")
-        return False
+    final = requests.post("https://api.linkedin.com/v2/ugcPosts", headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"}, json=post_body)
+    return final.status_code == 201
 
 # --- MAIN ---
 if __name__ == "__main__":
     print("🤖 Bot Started...")
-    
-    # --- HUMAN DELAY ---
-    wait_minutes = random.randint(1, 5)
-    print(f"😴 Waiting for {wait_minutes} minutes to simulate human behavior...")
-    time.sleep(wait_minutes * 60)
-    
-    attempts = 0
-    posted = False
     history = load_history()
     
-    while attempts < 5 and not posted:
-        attempts += 1
-        print(f"\n--- Attempt {attempts} ---")
-        
-        content = fetch_content(history)
-        if not content: break
-        
-        post_text = generate_viral_post(content)
-        
-        if post_text == "SKIP":
-            print("   -> Skipping this article, fetching another...")
-            save_history(history, content['title'], content['link']) 
-            continue
-            
-        if post_text:
-            print("\n--- FINAL POST PREVIEW ---")
-            print(post_text)
-            print("--------------------------")
-            
-            # Uncomment below to go live
-            if post_to_linkedin(post_text, content['image_url']):
-                 print("✅ Successfully Posted!")
-                 save_history(history, content['title'], content['link'])
-                 posted = True
-            else:
-                 print("❌ LinkedIn API Error.")
-            
+    posted_successfully = False
+    
+    # RERUN 5 TIMES IF FAILS
+    for attempt in range(1, 6):
+        if posted_successfully:
             break
+            
+        print(f"\n--- Attempt {attempt}/5 ---")
+        
+        # 1. Fetch
+        content = fetch_content(history)
+        if not content: 
+            print("   -> No content found. Retrying...")
+            continue # Try next attempt
+            
+        # 2. Write
+        post_text = generate_viral_post(content)
+        if not post_text: 
+            continue # Try next attempt
+        
+        print("\n--- PREVIEW ---")
+        print(post_text)
+        print("--- END PREVIEW ---")
+        
+        # 3. Post
+        # UNCOMMENT BELOW TO ACTUALLY POST
+        if post_to_linkedin(post_text, content['image_url']):
+             print("✅ Posted Successfully!")
+             save_history(history, content['title'], content['link'])
+             posted_successfully = True
+        else:
+             print("❌ API Post failed. Retrying with next article...")
+             time.sleep(5) # Short pause before retry
