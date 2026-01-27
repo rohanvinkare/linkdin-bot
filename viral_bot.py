@@ -6,7 +6,15 @@ import time
 import os
 import datetime
 import re
+import logging
 from bs4 import BeautifulSoup
+
+# --- LOGGING CONFIGURATION ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 # --- CONFIGURATION ---
 HISTORY_FILE = "history.json"
@@ -128,26 +136,18 @@ def get_valid_model_name():
             if "gemini-1.0-pro" in available_models: return "gemini-1.0-pro"
             
             if available_models:
-                print(f"   ⚠️ Preferred model not found. Using fallback: {available_models[0]}")
+                logging.warning(f"Preferred model not found. Using fallback: {available_models[0]}")
                 return available_models[0]
                 
     except Exception as e:
-        print(f"   ⚠️ Could not fetch model list: {e}")
+        logging.error(f"Could not fetch model list: {e}")
     
     return "gemini-1.5-flash-latest"
-
-# --- HUMAN-LIKE DELAYS ---
-def human_delay(min_seconds=2, max_seconds=5):
-    """Simulates human reading/thinking time to avoid bot detection"""
-    delay = random.uniform(min_seconds, max_seconds)
-    print(f"   ⏳ Pausing {delay:.1f}s (human behavior simulation)...")
-    time.sleep(delay)
 
 # --- ENHANCED IMAGE SCRAPER ---
 def get_article_details(url, mode):
     try:
-        print(f"   ⬇️  Scraping: {url}")
-        human_delay(1, 3)  # Delay before scraping
+        logging.info(f"Scraping URL: {url}")
         r = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(r.content, 'html.parser')
         
@@ -164,14 +164,14 @@ def get_article_details(url, mode):
         twitter_img = soup.find("meta", attrs={"name": "twitter:image"})
         if twitter_img and twitter_img.get("content"):
             image_url = twitter_img["content"]
-            print(f"   🖼️  Found Twitter Card image")
+            logging.info("Found Twitter Card image")
         
         # Strategy 2: Open Graph image
         if not image_url:
             og_image = soup.find("meta", property="og:image")
             if og_image and og_image.get("content"): 
                 image_url = og_image["content"]
-                print(f"   🖼️  Found OG image")
+                logging.info("Found OG image")
         
         # Strategy 3: Look for hero/featured images in article
         if not image_url:
@@ -186,7 +186,7 @@ def get_article_details(url, mode):
                     src = hero_img['src']
                     if src.startswith('http'):
                         image_url = src
-                        print(f"   🖼️  Found hero image")
+                        logging.info("Found hero image")
                         break
         
         # Strategy 4: First large image in content (width/height check)
@@ -208,7 +208,7 @@ def get_article_details(url, mode):
                     # Avoid logos, icons, tracking pixels
                     if not any(skip in src.lower() for skip in ['logo', 'icon', 'avatar', 'pixel', 'tracking', '1x1']):
                         image_url = src
-                        print(f"   🖼️  Found content image ({w}x{h})")
+                        logging.info(f"Found content image ({w}x{h})")
                         break
         
         # Strategy 5: Fallback to first valid image
@@ -218,21 +218,21 @@ def get_article_details(url, mode):
                 src = first_img['src']
                 if src.startswith('http'): 
                     image_url = src
-                    print(f"   🖼️  Using first available image")
+                    logging.info("Using first available image")
         
         # Strategy 6: Use fallback for concepts only
         if not image_url and mode == "CONCEPT":
-            print("   ⚠️ No image found. Using Fallback.")
+            logging.warning("No image found. Using Fallback.")
             image_url = random.choice(FALLBACK_IMAGES)
         
         if not image_url:
-            print("   ⚠️ No suitable image found. SKIP.")
+            logging.warning("No suitable image found. SKIP.")
             return None 
             
         return {"text": text[:12000], "image": image_url}
         
     except Exception as e:
-        print(f"   ⚠️ Error: {e}")
+        logging.error(f"Scraping Error: {e}")
         return None
 
 def fetch_content(history_data):
@@ -241,27 +241,15 @@ def fetch_content(history_data):
     sources = ENGINEERING_FEEDS if mode == "CONCEPT" else NEWS_FEEDS
     random.shuffle(sources)
     
-    print(f"🎲 Mode Selected: {mode}")
-    print(f"📚 Available Sources: {len(sources)}")
+    logging.info(f"Mode Selected: {mode}")
     
-    for idx, feed_url in enumerate(sources, 1):
+    for feed_url in sources:
         try:
-            print(f"\n   📡 Checking Feed {idx}/{len(sources)}: {feed_url}")
             feed = feedparser.parse(feed_url)
-            print(f"   📄 Found {len(feed.entries)} articles in this feed")
-            
             for entry in feed.entries[:3]:
-                print(f"   🔍 Checking: {entry.title[:60]}...")
-                if is_already_posted(entry.link, entry.title, history_data): 
-                    print(f"   ⏭️  Already posted, skipping")
-                    continue
-                    
+                if is_already_posted(entry.link, entry.title, history_data): continue
                 details = get_article_details(entry.link, mode)
-                if not details: 
-                    print(f"   ❌ Failed to extract details, trying next article")
-                    continue
-                    
-                print(f"   ✅ Valid content found!")
+                if not details: continue 
                 return {
                     "type": mode,
                     "title": entry.title,
@@ -269,21 +257,16 @@ def fetch_content(history_data):
                     "full_text": details["text"],
                     "image_url": details["image"]
                 }
-        except Exception as e:
-            print(f"   ⚠️  Feed parsing error: {e}")
-            continue
-    
-    print(f"   ❌ No valid content found after checking all sources")
+        except: continue
     return None
 
 # --- AI WRITER WITH UNICODE STYLING ---
 def generate_viral_post(content_item):
     valid_model = get_valid_model_name()
-    print(f"   🧠 Using AI Model: {valid_model}")
-    print(f"   📝 Generating {content_item['type']} post...")
+    logging.info(f"Asking Gemini ({valid_model})...")
     
     if not GEMINI_API_KEY:
-        print("   ❌ ERROR: GEMINI_API_KEY is missing!")
+        logging.error("GEMINI_API_KEY is missing!")
         return None
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{valid_model}:generateContent?key={GEMINI_API_KEY}"
@@ -354,46 +337,28 @@ def generate_viral_post(content_item):
         """
 
     try:
-        human_delay(3, 6)  # Simulate thinking time before API call
-        print(f"   🌐 Calling Gemini API...")
-        
         resp = requests.post(url, headers={"Content-Type": "application/json"}, json={"contents": [{"parts": [{"text": prompt}]}]})
         
         if resp.status_code != 200:
-            print(f"   ❌ GOOGLE API ERROR {resp.status_code}: {resp.text}")
+            logging.error(f"GOOGLE API ERROR {resp.status_code}: {resp.text}")
             return None
 
-        print(f"   ✅ AI response received ({len(resp.text)} chars)")
         text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-        
-        cleaned_text = clean_text_for_linkedin(text)
-        print(f"   🎨 Text formatted with Unicode styling")
-        print(f"   📏 Final post length: {len(cleaned_text)} characters")
-        
-        return cleaned_text
+        return clean_text_for_linkedin(text)
 
     except Exception as e:
-        print(f"   ❌ EXCEPTION during AI generation: {e}")
+        logging.error(f"EXCEPTION: {e}")
     return None
 
 # --- POSTER ---
 def post_to_linkedin(content, image_url):
-    print(f"\n   📤 Preparing to post to LinkedIn...")
-    print(f"   🖼️  Image URL: {image_url[:80]}...")
-    
-    human_delay(2, 4)  # Simulate reviewing the post before publishing
-    
+    logging.info(f"Uploading Image: {image_url}")
     try:
-        print(f"   ⬇️  Downloading image...")
         img_data = requests.get(image_url, headers=HEADERS, timeout=10).content
-        print(f"   ✅ Image downloaded ({len(img_data)} bytes)")
-    except Exception as e:
-        print(f"   ❌ Failed to download image: {e}")
+    except:
+        logging.error("Failed to download image.")
         return False
     
-    human_delay(1, 3)  # Delay before upload registration
-    
-    print(f"   📝 Registering image upload with LinkedIn...")
     reg = requests.post(
         "https://api.linkedin.com/v2/assets?action=registerUpload",
         headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"},
@@ -407,29 +372,15 @@ def post_to_linkedin(content, image_url):
     )
     
     if reg.status_code != 200: 
-        print(f"   ❌ LinkedIn registration failed (Status {reg.status_code})")
-        print(f"   ❌ Response: {reg.text[:200]}")
+        logging.error(f"LinkedIn Upload Error: {reg.text}")
         return False
-    
-    print(f"   ✅ Upload registered successfully")
     
     upload_url = reg.json()['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
     asset = reg.json()['value']['asset']
     
-    human_delay(1, 2)  # Delay before actual upload
-    
-    print(f"   ⬆️  Uploading image to LinkedIn CDN...")
     up = requests.put(upload_url, data=img_data, headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"})
+    if up.status_code != 201: return False
     
-    if up.status_code != 201: 
-        print(f"   ❌ Image upload failed (Status {up.status_code})")
-        return False
-    
-    print(f"   ✅ Image uploaded successfully")
-    
-    human_delay(2, 5)  # Simulate final review before posting
-    
-    print(f"   📣 Publishing post to LinkedIn...")
     post_body = {
         "author": LINKEDIN_PERSON_URN,
         "lifecycleState": "PUBLISHED",
@@ -444,118 +395,43 @@ def post_to_linkedin(content, image_url):
     }
     
     final = requests.post("https://api.linkedin.com/v2/ugcPosts", headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"}, json=post_body)
-    
-    if final.status_code == 201:
-        print(f"   ✅ Post published successfully!")
-        return True
-    else:
-        print(f"   ❌ Post publication failed (Status {final.status_code})")
-        print(f"   ❌ Response: {final.text[:200]}")
-        return False
+    return final.status_code == 201
 
 # --- MAIN ---
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🤖 LINKEDIN AUTO-POSTER BOT STARTED")
-    print("=" * 60)
-    print(f"⏰ Execution Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🌍 Timezone: UTC")
-    print("")
-    
-    # Verify credentials
-    print("🔐 Verifying Credentials...")
-    if not LINKEDIN_ACCESS_TOKEN:
-        print("   ❌ LINKEDIN_TOKEN missing!")
-        exit(1)
-    if not LINKEDIN_PERSON_URN:
-        print("   ❌ LINKEDIN_URN missing!")
-        exit(1)
-    if not GEMINI_API_KEY:
-        print("   ❌ GEMINI_API_KEY missing!")
-        exit(1)
-    print("   ✅ All credentials present")
-    print("")
-    
-    # Load history
-    print("📂 Loading Post History...")
+    logging.info("Bot Started...")
     history = load_history()
-    print(f"   📊 Total posts in history: {len(history)}")
-    if history:
-        last_post = history[-1]
-        print(f"   📅 Last post date: {last_post.get('date', 'Unknown')}")
-        print(f"   📝 Last post title: {last_post.get('title', 'Unknown')[:60]}...")
-    print("")
-    
     posted_successfully = False
     
     for attempt in range(1, 6):
-        if posted_successfully: 
-            break
-            
-        print("=" * 60)
-        print(f"🔄 ATTEMPT {attempt}/5")
-        print("=" * 60)
+        if posted_successfully: break
+        logging.info(f"--- Attempt {attempt}/5 ---")
         
-        print("🔍 Step 1: Fetching Content...")
         content = fetch_content(history)
-        
         if not content: 
-            print("   ⚠️  No suitable content found.")
-            if attempt < 5:
-                print(f"   🔁 Will retry in 10 seconds...")
-                time.sleep(10)
+            logging.info("-> No content found.")
             continue 
-        
-        print(f"\n✅ Content Selected:")
-        print(f"   📌 Type: {content['type']}")
-        print(f"   📌 Title: {content['title']}")
-        print(f"   📌 Source: {content['link'][:60]}...")
-        print(f"   📌 Text Length: {len(content['full_text'])} chars")
-        print(f"   📌 Image: {content['image_url'][:60]}...")
-        print("")
-        
-        print("🔍 Step 2: Generating AI Post...")
+            
         post_text = generate_viral_post(content)
-        
         if not post_text: 
-            print("   ⚠️  AI generation failed.")
-            if attempt < 5:
-                print(f"   🔁 Retrying in 10 seconds...")
-                time.sleep(10)
             continue 
         
-        print("")
-        print("=" * 60)
-        print("📄 POST PREVIEW")
-        print("=" * 60)
-        print(post_text)
-        print("=" * 60)
-        print("")
+        logging.info("\n--- PREVIEW ---")
+        print(post_text) # Keep print for local debugging visibility only
+        logging.info("--- END PREVIEW ---")
         
-        print("🔍 Step 3: Publishing to LinkedIn...")
+        # --- HUMAN DELAY LOGIC ---
+        # Sleep between 0 and 5 minutes (300 seconds)
+        human_delay = random.randint(0, 300)
+        minutes = round(human_delay / 60, 2)
+        logging.info(f"😴 Simulating human behavior: Sleeping for {human_delay}s ({minutes} mins) before posting...")
+        time.sleep(human_delay)
+        # -------------------------
+
         if post_to_linkedin(post_text, content['image_url']):
-            print("")
-            print("=" * 60)
-            print("🎉 SUCCESS! POST PUBLISHED TO LINKEDIN")
-            print("=" * 60)
-            save_history(history, content['title'], content['link'])
-            print(f"💾 History saved ({len(history)} total posts)")
-            posted_successfully = True
+             logging.info("✅ Posted Successfully!")
+             save_history(history, content['title'], content['link'])
+             posted_successfully = True
         else:
-            print("")
-            print("=" * 60)
-            print(f"❌ ATTEMPT {attempt} FAILED")
-            print("=" * 60)
-            if attempt < 5:
-                retry_delay = random.randint(15, 30)
-                print(f"⏳ Waiting {retry_delay} seconds before retry...")
-                time.sleep(retry_delay)
-    
-    print("")
-    print("=" * 60)
-    if posted_successfully:
-        print("✅ BOT EXECUTION COMPLETED SUCCESSFULLY")
-    else:
-        print("❌ BOT EXECUTION FAILED - All 5 attempts exhausted")
-        exit(1)
-    print("=" * 60)
+             logging.error("API Post failed. Retrying...")
+             time.sleep(5)
