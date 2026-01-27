@@ -26,7 +26,6 @@ NEWS_FEEDS = [
 ]
 
 # Group 2: High-Quality Engineering (70% Chance)
-# selected ONLY blogs known for technical depth to ensure accuracy
 ENGINEERING_FEEDS = [
     "https://netflixtechblog.com/feed",           
     "https://eng.uber.com/feed/",                 
@@ -62,6 +61,28 @@ def is_already_posted(link, title, history_data):
         if entry.get("web_link") == clean_link or entry.get("title") == title: return True
     return False
 
+def clean_text_for_linkedin(text):
+    """
+    LinkedIn does not support Markdown. This function:
+    1. Removes **bold** and ## Headers
+    2. Converts * bullets to emojis
+    3. Ensures spacing is correct
+    """
+    # Remove Bold/Italic markers
+    text = text.replace("**", "").replace("__", "")
+    
+    # Remove Markdown headers (## Title)
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    
+    # Convert standard bullet points (* or -) to Emojis
+    text = re.sub(r'^[\*\-]\s+', '🔹 ', text, flags=re.MULTILINE)
+    
+    # Ensure hashtags have a space before them if they are stuck to text
+    text = text.replace("#", " #")
+    text = re.sub(r'\s+#', ' #', text) # Fix double spaces
+    
+    return text.strip()
+
 # --- INTELLIGENT SCRAPER ---
 def get_article_text(url):
     try:
@@ -73,7 +94,7 @@ def get_article_text(url):
         paragraphs = target.find_all(['p', 'h2', 'li'])
         text = "\n".join([p.get_text().strip() for p in paragraphs])
         
-        # QUALITY GATE 1: If text is too short, it's likely not a deep concept. Skip.
+        # QUALITY GATE 1: If text is too short, it's likely not a deep concept.
         if len(text) < 1000: 
             print("   ⚠️ Text too short (low quality). Skipping.")
             return None
@@ -84,9 +105,8 @@ def get_article_text(url):
 
 def fetch_content(history_data):
     # --- 70% / 30% LOGIC ---
-    # random.random() gives a number between 0.0 and 1.0
-    # If number is > 0.3 (0.31 to 1.0), that is a 70% range -> Choose CONCEPT
-    # If number is <= 0.3 (0.0 to 0.30), that is a 30% range -> Choose NEWS
+    # Random > 0.3 means 70% chance (Concepts)
+    # Random <= 0.3 means 30% chance (News)
     mode = "CONCEPT" if random.random() > 0.3 else "NEWS"
     sources = ENGINEERING_FEEDS if mode == "CONCEPT" else NEWS_FEEDS
     
@@ -99,7 +119,7 @@ def fetch_content(history_data):
             if not feed.entries: continue
         except: continue
         
-        for entry in feed.entries[:3]: # Only check fresh 3 posts
+        for entry in feed.entries[:3]: # Check top 3 posts
             if not is_already_posted(entry.link, entry.title, history_data):
                 full_text = get_article_text(entry.link)
                 if not full_text: continue
@@ -107,6 +127,8 @@ def fetch_content(history_data):
                 image_url = None
                 try:
                     if 'media_content' in entry: image_url = entry.media_content[0]['url']
+                    # Fallback to Media Thumbnail if available
+                    elif 'media_thumbnail' in entry: image_url = entry.media_thumbnail[0]['url']
                 except: pass
 
                 return {
@@ -118,13 +140,13 @@ def fetch_content(history_data):
                 }
     return None
 
-# --- AI ENGINE WITH "STAFF ENGINEER" PERSONA ---
+# --- AI ENGINE ---
 def generate_viral_post(content_item):
-    print("   🧠 Asking Gemini to write (and verify) the post...")
+    print("   🧠 Asking Gemini to write...")
     
     # 1. Fetch Models
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    models = ["gemini-1.5-flash"] # Default
+    models = ["gemini-1.5-flash"]
     try:
         data = requests.get(url).json()
         models = [m['name'].replace('models/', '') for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
@@ -133,35 +155,32 @@ def generate_viral_post(content_item):
 
     # --- PROMPTS ---
     if content_item['type'] == "CONCEPT":
-        # QUALITY GATE 2: The "SKIP" Instruction
         prompt = f"""
         Act as a Principal Staff Engineer at a FAANG company.
         
-        TASK: Review this article and write a LinkedIn post about the System Design concept.
+        TASK: Review this article and write a LinkedIn post.
         ARTICLE: "{content_item['title']}"
         TEXT SAMPLE: "{content_item['full_text'][:6000]}..."
         
-        CRITICAL INSTRUCTIONS FOR ACCURACY:
-        1. VALIDATION: If this article is just "Marketing Fluff" (e.g. "We launched a new UI"), output exactly the word: SKIP.
-        2. If the concept is valid, explain the *Architecture* and *Trade-offs*.
-        3. Do not just summarize. Add "Senior Engineer Intuition" - why did they choose this? 
-        4. Be 100% technically accurate. Do not hallucinate.
+        INSTRUCTIONS:
+        1. If this is marketing fluff, output: SKIP.
+        2. Explain the Architecture and Trade-offs.
+        3. Be 100% technically accurate.
         
         FORMATTING:
-        - NO Markdown Bold (**). Use Capital letters for emphasis.
-        - NO Headers (##).
-        - Use emojis: 🔹, ⚙️, 🚀, 👉, 🔥, ⭐, 🌐, 💥.
+        - NO Markdown (**). 
+        - Use these emojis: 🔹, ⚙️, 🚀, 👉.
         
         OUTPUT TEMPLATE:
-        [One sentence hook about a common misconception]
+        [Hook about a misconception]
         
-        [The "Aha!" moment about how this ACTUALLY works]
+        [The "Aha!" moment]
         
         The Trade-offs:
-        🔹 [Pro: e.g. High Throughput]
-        🔹 [Con: e.g. Eventual Consistency]
+        🔹 [Pro]
+        🔹 [Con]
         
-        [One sentence conclusion on when to use this]
+        [Conclusion]
         
         👇 Thoughts?
         
@@ -171,11 +190,11 @@ def generate_viral_post(content_item):
         """
     else:
         prompt = f"""
-        Act as a Tech Lead. Write a short, punchy reaction to this news.
+        Act as a Tech Lead. Write a short reaction to this news.
         NEWS: "{content_item['title']}"
         TEXT: "{content_item['full_text'][:4000]}..."
         
-        If this is boring news, output: SKIP.
+        If this is boring, output: SKIP.
         
         FORMAT:
         [Provocative Hook]
@@ -186,7 +205,6 @@ def generate_viral_post(content_item):
         #tech #news
         """
 
-    # --- GENERATION LOOP ---
     for model in models:
         try:
             api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
@@ -194,53 +212,90 @@ def generate_viral_post(content_item):
             
             if resp.status_code == 200:
                 text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-                
-                # QUALITY GATE 3: Handling the SKIP command
                 if "SKIP" in text or len(text) < 50:
                     print(f"   ⚠️ AI decided this article is low quality (SKIP).")
                     return "SKIP"
                 
-                # Cleaning
-                text = text.replace("**", "").replace("##", "")
-                text = re.sub(r'^\* ', '🔹 ', text, flags=re.MULTILINE)
-                return text
+                return clean_text_for_linkedin(text)
         except: continue
         
     return None
 
-# --- LINKEDIN POSTER ---
+# --- LINKEDIN POSTER (FIXED IMAGE UPLOAD) ---
 def post_to_linkedin(content, image_url):
     print("📤 Uploading to LinkedIn...")
-    # (Same posting logic as previous script - kept standard)
-    # Note: Ensure you have your TOKEN ready
     headers = {"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0"}
     
     asset = None
-    # Image upload logic (omitted for brevity, same as previous)
     
+    # 1. Handle Image Upload if URL exists
+    if image_url:
+        print(f"   🖼️  Found Image: {image_url}")
+        try:
+            # Step A: Register the upload
+            reg_body = {
+                "registerUploadRequest": {
+                    "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+                    "owner": LINKEDIN_PERSON_URN,
+                    "serviceRelationships": [{"relationshipType": "OWNER", "identifier": "urn:li:userGeneratedContent"}]
+                }
+            }
+            reg = requests.post("https://api.linkedin.com/v2/assets?action=registerUpload", headers=headers, json=reg_body)
+            
+            if reg.status_code == 200:
+                upload_url = reg.json()['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
+                asset = reg.json()['value']['asset']
+                
+                # Step B: Download Image & Upload to LinkedIn
+                # Note: We use a stream to handle binary data correctly
+                img_data = requests.get(image_url, headers=HEADERS, stream=True)
+                if img_data.status_code == 200:
+                    up = requests.put(upload_url, data=img_data.content, headers={"Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}"})
+                    if up.status_code != 201:
+                        print(f"   ⚠️ Image upload binary failed. Status: {up.status_code}")
+                        asset = None
+                else:
+                    print("   ⚠️ Could not download image from source.")
+                    asset = None
+            else:
+                print(f"   ⚠️ Image registration failed: {reg.text}")
+        except Exception as e:
+            print(f"   ⚠️ Image Error: {e}")
+            asset = None
+
+    # 2. Construct the Post
     post_body = {
         "author": LINKEDIN_PERSON_URN,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
                 "shareCommentary": {"text": content},
-                "shareMediaCategory": "NONE", # Default to text/link only for safety
+                "shareMediaCategory": "IMAGE" if asset else "NONE",
+                "media": [{"status": "READY", "media": asset}] if asset else []
             }
         },
         "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
     }
     
     r = requests.post("https://api.linkedin.com/v2/ugcPosts", headers=headers, json=post_body)
-    return r.status_code == 201
+    
+    if r.status_code == 201:
+        return True
+    else:
+        print(f"❌ LinkedIn Error: {r.text}")
+        return False
 
-# --- MAIN EXECUTION BLOCK ---
+# --- MAIN ---
 if __name__ == "__main__":
     print("🤖 Bot Started...")
     
-    # Retry Loop: If AI returns SKIP, try the next article
+    # --- HUMAN DELAY ---
+    wait_minutes = random.randint(1, 5)
+    print(f"😴 Waiting for {wait_minutes} minutes to simulate human behavior...")
+    time.sleep(wait_minutes * 60)
+    
     attempts = 0
     posted = False
-    
     history = load_history()
     
     while attempts < 5 and not posted:
@@ -254,7 +309,6 @@ if __name__ == "__main__":
         
         if post_text == "SKIP":
             print("   -> Skipping this article, fetching another...")
-            # Mark as "read" in history so we don't pick it again
             save_history(history, content['title'], content['link']) 
             continue
             
@@ -263,13 +317,12 @@ if __name__ == "__main__":
             print(post_text)
             print("--------------------------")
             
-            # UNCOMMENT TO ENABLE POSTING
+            # Uncomment below to go live
             if post_to_linkedin(post_text, content['image_url']):
-                print("✅ Successfully Posted!")
-                save_history(history, content['title'], content['link'])
-                posted = True
+                 print("✅ Successfully Posted!")
+                 save_history(history, content['title'], content['link'])
+                 posted = True
             else:
-                print("❌ LinkedIn API Error.")
+                 print("❌ LinkedIn API Error.")
             
-            # For testing, break after preview
             break
