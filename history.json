@@ -43,5 +43,10 @@
         "title": "Assessing internal quality while coding with an agent",
         "web_link": "https://martinfowler.com/articles/exploring-gen-ai/ccmenu-quality.html",
         "date": "2026-01-27"
+    },
+    {
+        "title": "How Google Manages Trillions of Authorizations with Zanzibar",
+        "web_link": "https://blog.bytebytego.com/p/how-google-manages-trillions-of-authorizations",
+        "date": "2026-01-27"
     }
 ]
