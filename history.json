@@ -48,5 +48,10 @@
         "title": "How Google Manages Trillions of Authorizations with Zanzibar",
         "web_link": "https://blog.bytebytego.com/p/how-google-manages-trillions-of-authorizations",
         "date": "2026-01-27"
+    },
+    {
+        "title": "How Cursor Shipped its Coding Agent to Production",
+        "web_link": "https://blog.bytebytego.com/p/how-cursor-shipped-its-coding-agent",
+        "date": "2026-01-28"
     }
 ]
