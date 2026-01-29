@@ -58,5 +58,10 @@
         "title": "How Salesforce migrated from Cluster Autoscaler to Karpenter across their fleet of 1,000 EKS clusters",
         "web_link": "https://aws.amazon.com/blogs/architecture/how-salesforce-migrated-from-cluster-autoscaler-to-karpenter-across-their-fleet-of-1000-eks-clusters/",
         "date": "2026-01-28"
+    },
+    {
+        "title": "Architecting conversational observability for cloud applications",
+        "web_link": "https://aws.amazon.com/blogs/architecture/architecting-conversational-observability-for-cloud-applications/",
+        "date": "2026-01-29"
     }
 ]
