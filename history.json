@@ -63,5 +63,10 @@
         "title": "Architecting conversational observability for cloud applications",
         "web_link": "https://aws.amazon.com/blogs/architecture/architecting-conversational-observability-for-cloud-applications/",
         "date": "2026-01-29"
+    },
+    {
+        "title": "How BASF\u2019s Agriculture Solutions drives traceability and climate action by tokenizing cotton value chains using Amazon Managed Blockchain",
+        "web_link": "https://aws.amazon.com/blogs/architecture/how-basfs-agriculture-solutions-drives-traceability-and-climate-action-by-tokenizing-cotton-value-chains-using-amazon-managed-blockchain/",
+        "date": "2026-01-29"
     }
 ]
