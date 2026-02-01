@@ -88,5 +88,10 @@
         "title": "Rust at Scale: An Added Layer of Security for WhatsApp",
         "web_link": "https://engineering.fb.com/2026/01/27/security/rust-at-scale-security-whatsapp/",
         "date": "2026-01-31"
+    },
+    {
+        "title": "How Artera enhances prostate cancer diagnostics using AWS",
+        "web_link": "https://aws.amazon.com/blogs/architecture/how-artera-enhances-prostate-cancer-diagnostics-using-aws/",
+        "date": "2026-02-01"
     }
 ]
