@@ -98,5 +98,10 @@
         "title": "Bliki: Excessive Bold",
         "web_link": "https://martinfowler.com/bliki/ExcessiveBold.html",
         "date": "2026-02-01"
+    },
+    {
+        "title": "EP200: HTTP/2 over TCP vs HTTP/3 over QUIC",
+        "web_link": "https://blog.bytebytego.com/p/ep200-http2-over-tcp-vs-http3-over",
+        "date": "2026-02-02"
     }
 ]
