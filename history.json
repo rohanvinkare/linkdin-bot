@@ -103,5 +103,10 @@
         "title": "EP200: HTTP/2 over TCP vs HTTP/3 over QUIC",
         "web_link": "https://blog.bytebytego.com/p/ep200-http2-over-tcp-vs-http3-over",
         "date": "2026-02-02"
+    },
+    {
+        "title": "Adapting the Facebook Reels RecSys AI Model Based on User Feedback",
+        "web_link": "https://engineering.fb.com/2026/01/14/ml-applications/adapting-the-facebook-reels-recsys-ai-model-based-on-user-feedback/",
+        "date": "2026-02-02"
     }
 ]
