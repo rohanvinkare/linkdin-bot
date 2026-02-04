@@ -123,5 +123,10 @@
         "title": "How Grab Built a Vision LLM to Scan Images",
         "web_link": "https://blog.bytebytego.com/p/how-grab-built-a-vision-llm-to-scan",
         "date": "2026-02-04"
+    },
+    {
+        "title": "CSS at Scale With StyleX",
+        "web_link": "https://engineering.fb.com/2026/01/12/web/css-at-scale-with-stylex/",
+        "date": "2026-02-04"
     }
 ]
