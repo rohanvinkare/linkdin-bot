@@ -138,5 +138,10 @@
         "title": "Google\u2019s subscriptions rise in Q4 as YouTube pulls $60B in yearly revenue",
         "web_link": "https://techcrunch.com/2026/02/05/googles-subscriptions-rise-in-q4-as-youtube-pulls-60b-in-yearly-revenue/",
         "date": "2026-02-05"
+    },
+    {
+        "title": "Context Engineering for Coding Agents",
+        "web_link": "https://martinfowler.com/articles/exploring-gen-ai/context-engineering-coding-agents.html",
+        "date": "2026-02-06"
     }
 ]
