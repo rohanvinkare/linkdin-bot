@@ -163,5 +163,10 @@
         "title": "Fragments: February  4",
         "web_link": "https://martinfowler.com/fragments/2026-02-04.html",
         "date": "2026-02-08"
+    },
+    {
+        "title": "How Convera built fine-grained API authorization with Amazon Verified Permissions",
+        "web_link": "https://aws.amazon.com/blogs/architecture/how-convera-built-fine-grained-api-authorization-with-amazon-verified-permissions/",
+        "date": "2026-02-08"
     }
 ]
