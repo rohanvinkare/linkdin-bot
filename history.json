@@ -168,5 +168,10 @@
         "title": "How Convera built fine-grained API authorization with Amazon Verified Permissions",
         "web_link": "https://aws.amazon.com/blogs/architecture/how-convera-built-fine-grained-api-authorization-with-amazon-verified-permissions/",
         "date": "2026-02-08"
+    },
+    {
+        "title": "EP201: The Evolution of AI in Software Development",
+        "web_link": "https://blog.bytebytego.com/p/ep201-the-evolution-of-ai-in-software",
+        "date": "2026-02-09"
     }
 ]
