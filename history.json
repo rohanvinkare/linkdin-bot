@@ -183,5 +183,10 @@
         "title": "Fragments: February  9",
         "web_link": "https://martinfowler.com/fragments/2026-02-09.html",
         "date": "2026-02-10"
+    },
+    {
+        "title": "Building Prometheus: How Backend Aggregation Enables Gigawatt-Scale AI Clusters",
+        "web_link": "https://engineering.fb.com/2026/02/09/data-center-engineering/building-prometheus-how-backend-aggregation-enables-gigawatt-scale-ai-clusters/",
+        "date": "2026-02-10"
     }
 ]
