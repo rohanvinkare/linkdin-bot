@@ -178,5 +178,10 @@
         "title": "Mastering millisecond latency and millions of events: The event-driven architecture behind the Amazon Key Suite",
         "web_link": "https://aws.amazon.com/blogs/architecture/mastering-millisecond-latency-and-millions-of-events-the-event-driven-architecture-behind-the-amazon-key-suite/",
         "date": "2026-02-09"
+    },
+    {
+        "title": "Fragments: February  9",
+        "web_link": "https://martinfowler.com/fragments/2026-02-09.html",
+        "date": "2026-02-10"
     }
 ]
