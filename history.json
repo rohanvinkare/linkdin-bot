@@ -188,5 +188,10 @@
         "title": "Building Prometheus: How Backend Aggregation Enables Gigawatt-Scale AI Clusters",
         "web_link": "https://engineering.fb.com/2026/02/09/data-center-engineering/building-prometheus-how-backend-aggregation-enables-gigawatt-scale-ai-clusters/",
         "date": "2026-02-10"
+    },
+    {
+        "title": "How LinkedIn Built a Next-Gen Service Discovery for 1000s of Services",
+        "web_link": "https://blog.bytebytego.com/p/how-linkedin-built-a-next-gen-service",
+        "date": "2026-02-11"
     }
 ]
