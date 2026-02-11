@@ -193,5 +193,10 @@
         "title": "How LinkedIn Built a Next-Gen Service Discovery for 1000s of Services",
         "web_link": "https://blog.bytebytego.com/p/how-linkedin-built-a-next-gen-service",
         "date": "2026-02-11"
+    },
+    {
+        "title": "How Yelp Built \u201cYelp Assistant\u201d",
+        "web_link": "https://blog.bytebytego.com/p/how-yelp-built-yelp-assistant",
+        "date": "2026-02-11"
     }
 ]
