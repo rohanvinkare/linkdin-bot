@@ -198,5 +198,10 @@
         "title": "How Yelp Built \u201cYelp Assistant\u201d",
         "web_link": "https://blog.bytebytego.com/p/how-yelp-built-yelp-assistant",
         "date": "2026-02-11"
+    },
+    {
+        "title": "The Death of Traditional Testing: Agentic Development Broke a 50-Year-Old Field, JiTTesting Can Revive It",
+        "web_link": "https://engineering.fb.com/2026/02/11/developer-tools/the-death-of-traditional-testing-agentic-development-jit-testing-revival/",
+        "date": "2026-02-12"
     }
 ]
