@@ -243,5 +243,10 @@
         "title": "Fractal Analytics\u2019 muted IPO debut signals persistent AI fears in India",
         "web_link": "https://techcrunch.com/2026/02/16/fractal-analytics-muted-ipo-debut-signals-persistent-ai-fears-in-india/",
         "date": "2026-02-16"
+    },
+    {
+        "title": "How OpenAI Scaled to 800 Million Users With Postgres",
+        "web_link": "https://blog.bytebytego.com/p/how-openai-scaled-to-800-million",
+        "date": "2026-02-17"
     }
 ]
