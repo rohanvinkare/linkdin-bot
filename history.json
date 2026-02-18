@@ -248,5 +248,10 @@
         "title": "How OpenAI Scaled to 800 Million Users With Postgres",
         "web_link": "https://blog.bytebytego.com/p/how-openai-scaled-to-800-million",
         "date": "2026-02-17"
+    },
+    {
+        "title": "Bliki: Agentic Email",
+        "web_link": "https://martinfowler.com/bliki/AgenticEmail.html",
+        "date": "2026-02-18"
     }
 ]
