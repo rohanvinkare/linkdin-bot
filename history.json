@@ -258,5 +258,10 @@
         "title": "How Cloudflare Eliminates Cold Starts for Serverless Workers",
         "web_link": "https://blog.bytebytego.com/p/how-cloudflare-eliminates-cold-starts",
         "date": "2026-02-18"
+    },
+    {
+        "title": "Fragments: February 18",
+        "web_link": "https://martinfowler.com/fragments/2026-02-18.html",
+        "date": "2026-02-19"
     }
 ]
