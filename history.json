@@ -288,5 +288,10 @@
         "title": "LAST CALL FOR ENROLLMENT: Become an AI Engineer - Cohort 4",
         "web_link": "https://blog.bytebytego.com/p/last-call-for-enrollment-become-an",
         "date": "2026-02-21"
+    },
+    {
+        "title": "EP203: RabbitMQ vs Kafka vs Pulsar",
+        "web_link": "https://blog.bytebytego.com/p/ep203-rabbitmq-vs-kafka-vs-pulsar",
+        "date": "2026-02-22"
     }
 ]
