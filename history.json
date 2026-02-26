@@ -333,5 +333,10 @@
         "title": "The Algorithm That Powers Your X (Twitter) Post",
         "web_link": "https://blog.bytebytego.com/p/the-algorithm-that-powers-your-x",
         "date": "2026-02-26"
+    },
+    {
+        "title": "RCCLX: Innovating GPU Communications on AMD Platforms",
+        "web_link": "https://engineering.fb.com/2026/02/24/data-center-engineering/rrcclx-innovating-gpu-communications-amd-platforms-meta/",
+        "date": "2026-02-26"
     }
 ]
