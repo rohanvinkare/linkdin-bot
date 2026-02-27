@@ -343,5 +343,10 @@
         "title": "Fragments: February 25",
         "web_link": "https://martinfowler.com/fragments/2026-02-25.html",
         "date": "2026-02-27"
+    },
+    {
+        "title": "Digital Transformation at Santander: How Platform Engineering is Revolutionizing Cloud Infrastructure",
+        "web_link": "https://aws.amazon.com/blogs/architecture/digital-transformation-at-santander-how-platform-engineering-is-revolutionizing-cloud-infrastructure/",
+        "date": "2026-02-27"
     }
 ]
