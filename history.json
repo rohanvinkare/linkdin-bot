@@ -353,5 +353,10 @@
         "title": "Strong Consistency In Databases: Promises and Costs",
         "web_link": "https://blog.bytebytego.com/p/strong-consistency-in-databases-promises",
         "date": "2026-02-28"
+    },
+    {
+        "title": "6,000 AWS accounts, three people, one platform: Lessons learned",
+        "web_link": "https://aws.amazon.com/blogs/architecture/6000-aws-accounts-three-people-one-platform-lessons-learned/",
+        "date": "2026-02-28"
     }
 ]
