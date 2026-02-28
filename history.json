@@ -348,5 +348,10 @@
         "title": "Digital Transformation at Santander: How Platform Engineering is Revolutionizing Cloud Infrastructure",
         "web_link": "https://aws.amazon.com/blogs/architecture/digital-transformation-at-santander-how-platform-engineering-is-revolutionizing-cloud-infrastructure/",
         "date": "2026-02-27"
+    },
+    {
+        "title": "Strong Consistency In Databases: Promises and Costs",
+        "web_link": "https://blog.bytebytego.com/p/strong-consistency-in-databases-promises",
+        "date": "2026-02-28"
     }
 ]
