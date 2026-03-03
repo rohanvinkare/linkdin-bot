@@ -373,5 +373,10 @@
         "title": "The Architecture Behind Open-Source LLMs",
         "web_link": "https://blog.bytebytego.com/p/the-architecture-behind-open-source",
         "date": "2026-03-03"
+    },
+    {
+        "title": "Design-First Collaboration",
+        "web_link": "https://martinfowler.com/articles/reduce-friction-ai/design-first-collaboration.html",
+        "date": "2026-03-03"
     }
 ]
