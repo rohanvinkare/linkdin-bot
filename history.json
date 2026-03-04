@@ -383,5 +383,10 @@
         "title": "FFmpeg at Meta: Media Processing at Scale",
         "web_link": "https://engineering.fb.com/2026/03/02/video-engineering/ffmpeg-at-meta-media-processing-at-scale/",
         "date": "2026-03-04"
+    },
+    {
+        "title": "Humans and Agents in Software Engineering Loops",
+        "web_link": "https://martinfowler.com/articles/exploring-gen-ai/humans-and-agents.html",
+        "date": "2026-03-04"
     }
 ]
