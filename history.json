@@ -398,5 +398,10 @@
         "title": "Investing in Infrastructure: Meta\u2019s Renewed Commitment to jemalloc",
         "web_link": "https://engineering.fb.com/2026/03/02/data-infrastructure/investing-in-infrastructure-metas-renewed-commitment-to-jemalloc/",
         "date": "2026-03-05"
+    },
+    {
+        "title": "How to Build High Throughput Systems",
+        "web_link": "https://blog.bytebytego.com/p/how-to-build-high-throughput-systems",
+        "date": "2026-03-06"
     }
 ]
