@@ -413,5 +413,10 @@
         "title": "Ideological Resistance to Patents, Followed by Reluctant                Pragmatism",
         "web_link": "https://martinfowler.com/articles/patents-reluctant-pragmatism.html",
         "date": "2026-03-07"
+    },
+    {
+        "title": "How Agoda Built a Single Source of Truth for Financial Data",
+        "web_link": "https://blog.bytebytego.com/p/how-agoda-built-a-single-source-of",
+        "date": "2026-03-07"
     }
 ]
