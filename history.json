@@ -463,5 +463,10 @@
         "title": "Stateless Architecture: Benefits and Tradeoffs",
         "web_link": "https://blog.bytebytego.com/p/stateless-architecture-benefits-and",
         "date": "2026-03-13"
+    },
+    {
+        "title": "How Vimeo Implemented AI-Powered Subtitles",
+        "web_link": "https://blog.bytebytego.com/p/how-vimeo-implemented-ai-powered",
+        "date": "2026-03-13"
     }
 ]
