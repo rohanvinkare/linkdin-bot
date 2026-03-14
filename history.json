@@ -468,5 +468,10 @@
         "title": "How Vimeo Implemented AI-Powered Subtitles",
         "web_link": "https://blog.bytebytego.com/p/how-vimeo-implemented-ai-powered",
         "date": "2026-03-13"
+    },
+    {
+        "title": "Patch Me If You Can: AI Codemods for Secure-by-Default Android Apps",
+        "web_link": "https://engineering.fb.com/2026/03/13/android/ai-codemods-secure-by-default-android-apps-meta-tech-podcast/",
+        "date": "2026-03-14"
     }
 ]
