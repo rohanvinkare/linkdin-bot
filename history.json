@@ -473,5 +473,10 @@
         "title": "Patch Me If You Can: AI Codemods for Secure-by-Default Android Apps",
         "web_link": "https://engineering.fb.com/2026/03/13/android/ai-codemods-secure-by-default-android-apps-meta-tech-podcast/",
         "date": "2026-03-14"
+    },
+    {
+        "title": "How Airbnb Rolled Out 20+ Local Payment Methods in 360 Days",
+        "web_link": "https://blog.bytebytego.com/p/how-airbnb-rolled-out-20-local-payment",
+        "date": "2026-03-14"
     }
 ]
