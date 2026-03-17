@@ -503,5 +503,10 @@
         "title": "Fragments: March 16",
         "web_link": "https://martinfowler.com/fragments/2026-03-16.html",
         "date": "2026-03-17"
+    },
+    {
+        "title": "How Stripe\u2019s Minions Ship 1,300 PRs a Week",
+        "web_link": "https://blog.bytebytego.com/p/how-stripes-minions-ship-1300-prs",
+        "date": "2026-03-17"
     }
 ]
