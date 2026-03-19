@@ -523,5 +523,10 @@
         "title": "AI-powered event response for Amazon EKS",
         "web_link": "https://aws.amazon.com/blogs/architecture/ai-powered-event-response-for-amazon-eks/",
         "date": "2026-03-19"
+    },
+    {
+        "title": "Context Anchoring",
+        "web_link": "https://martinfowler.com/articles/reduce-friction-ai/context-anchoring.html",
+        "date": "2026-03-19"
     }
 ]
