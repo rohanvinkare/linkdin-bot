@@ -533,5 +533,10 @@
         "title": "Event Sourcing Explained: Benefits and Use Cases",
         "web_link": "https://blog.bytebytego.com/p/event-sourcing-explained-benefits",
         "date": "2026-03-20"
+    },
+    {
+        "title": "Friend Bubbles: Enhancing Social Discovery on Facebook Reels",
+        "web_link": "https://engineering.fb.com/2026/03/18/ml-applications/friend-bubbles-enhancing-social-discovery-on-facebook-reels/",
+        "date": "2026-03-20"
     }
 ]
