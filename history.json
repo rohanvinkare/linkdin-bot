@@ -528,5 +528,10 @@
         "title": "Context Anchoring",
         "web_link": "https://martinfowler.com/articles/reduce-friction-ai/context-anchoring.html",
         "date": "2026-03-19"
+    },
+    {
+        "title": "Event Sourcing Explained: Benefits and Use Cases",
+        "web_link": "https://blog.bytebytego.com/p/event-sourcing-explained-benefits",
+        "date": "2026-03-20"
     }
 ]
