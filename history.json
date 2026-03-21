@@ -543,5 +543,10 @@
         "title": "How OpenAI Codex Works",
         "web_link": "https://blog.bytebytego.com/p/how-openai-codex-works",
         "date": "2026-03-21"
+    },
+    {
+        "title": "Fragments: March 19",
+        "web_link": "https://martinfowler.com/fragments/2026-03-19.html",
+        "date": "2026-03-21"
     }
 ]
