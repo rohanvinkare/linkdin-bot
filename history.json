@@ -578,5 +578,10 @@
         "title": "How Generali Malaysia optimizes operations with Amazon EKS",
         "web_link": "https://aws.amazon.com/blogs/architecture/how-generali-malaysia-optimizes-operations-with-amazon-eks/",
         "date": "2026-03-24"
+    },
+    {
+        "title": "How Netflix Live Streams to 100 Million Devices in 60 Seconds",
+        "web_link": "https://blog.bytebytego.com/p/how-netflix-live-streams-to-100-million",
+        "date": "2026-03-25"
     }
 ]
