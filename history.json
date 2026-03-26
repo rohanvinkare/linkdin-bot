@@ -588,5 +588,10 @@
         "title": "Bliki: Architecture Decision Record",
         "web_link": "https://martinfowler.com/bliki/ArchitectureDecisionRecord.html",
         "date": "2026-03-25"
+    },
+    {
+        "title": "How Anthropic\u2019s Claude Thinks",
+        "web_link": "https://blog.bytebytego.com/p/how-anthropics-claude-thinks",
+        "date": "2026-03-26"
     }
 ]
